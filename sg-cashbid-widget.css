@@ -1,0 +1,131 @@
+/* ============================================================
+   SG CASH BID WIDGET — EMBED SAFE STYLES
+   ============================================================ */
+
+/* Root container */
+#sg-cashbid-widget {
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* Error message */
+#sg-cashbid-widget .sg-error {
+  color: #dc2626;
+  font-size: 14px;
+  padding: 12px;
+}
+
+/* ============================================================
+   FILTER BAR
+   ============================================================ */
+
+#sg-cashbid-widget #sg-filter-bar {
+  background: #f7f9fc;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 40px;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+/* Filter section */
+#sg-cashbid-widget .sg-filter-section {
+  position: relative;
+  min-width: 180px;
+}
+
+/* Filter title */
+#sg-cashbid-widget .sg-filter-title {
+  font-weight: 600;
+  color: #003f7f;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Floating dropdown panel */
+#sg-cashbid-widget .sg-filter-content {
+  display: none;
+  position: absolute;
+  top: 28px;
+  left: 0;
+  background: #ffffff;
+  border: 1px solid #d0d7e2;
+  border-radius: 6px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  z-index: 50;
+  min-width: 180px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+/* Checkbox rows */
+#sg-cashbid-widget #sg-filter-bar label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+/* Checkbox input */
+#sg-cashbid-widget #sg-filter-bar input[type="checkbox"] {
+  transform: scale(1.2);
+  cursor: pointer;
+}
+
+/* ============================================================
+   CASH BID CARDS
+   ============================================================ */
+
+#sg-cashbid-widget .sg-card {
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+/* Location heading */
+#sg-cashbid-widget .sg-location {
+  font-size: 24px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 15px;
+}
+
+/* Table layout */
+#sg-cashbid-widget table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Table header */
+#sg-cashbid-widget thead {
+  background: #f5f7fa;
+}
+
+#sg-cashbid-widget th {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  padding: 10px;
+  text-align: left;
+}
+
+/* Table body */
+#sg-cashbid-widget td {
+  padding: 12px 10px;
+  border-top: 1px solid #eeeeee;
+  font-size: 15px;
+}
+
