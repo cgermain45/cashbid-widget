@@ -1,149 +1,89 @@
 /* ============================================================
-   SG CASH BID WIDGET — FILTER BAR + TABLE + HEADER FIXES
+   SG CASH BID WIDGET — AMY STYLE RESTORE
    ============================================================ */
 
-/* Root container */
 #sg-cashbid-widget {
-    font-family: "Segoe UI", Roboto, Arial, sans-serif;
-    max-width: 720px;
-    margin: 40px auto;
-    text-align: center;
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  max-width: 720px;
+  margin: 40px auto;
+  text-align: center;
 }
 
-/* Error message */
-#sg-cashbid-widget .sg-error {
-    color: #dc2626;
-    font-size: 14px;
-    padding: 12px;
-}
-
-/* ============================================================
-   FILTER BAR
-   ============================================================ */
-
-#sg-cashbid-widget #sg-filter-bar {
-    background: #f7f9fc;
-    padding: 15px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    margin-bottom: 20px;
-    display: flex;
-    justify-content: flex-start;
-    gap: 40px;
-    align-items: flex-start;
-    flex-wrap: nowrap; /* prevents stacking */
-}
-
-#sg-cashbid-widget .sg-filter-section {
-    position: relative;
-    width: 220px; /* wider, more obvious */
-}
-
-#sg-cashbid-widget .sg-filter-title {
-    font-weight: 700;
-    color: #003f7f;
-    font-size: 17px;
-    cursor: pointer;
-    user-select: none;
-    padding: 6px 0;
-}
-
-/* Dropdown panel */
-#sg-cashbid-widget .sg-filter-content {
-    display: none;
-    position: absolute;
-    top: 32px;
-    left: 0;
-    background: white;
-    border: 1px solid #d0d7e2;
-    border-radius: 6px;
-    padding: 12px 14px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-    z-index: 50;
-    min-width: 220px;
-    max-height: 260px;
-    overflow-y: auto;
-}
-
-/* Checkbox rows */
-#sg-cashbid-widget #sg-filter-bar label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 0;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-#sg-cashbid-widget #sg-filter-bar input[type="checkbox"] {
-    transform: scale(1.2);
-    cursor: pointer;
-}
-
-/* ============================================================
-   TABLE + CARDS
-   ============================================================ */
-
+/* Card container */
 #sg-cashbid-widget .sg-card {
-    background: #ffffff;
-    border-radius: 10px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-    padding: 20px;
-    margin-bottom: 20px;
-    text-align: left;
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  padding: 20px;
+  margin-bottom: 30px;
+  text-align: left;
 }
 
 /* Location heading */
 #sg-cashbid-widget .sg-location {
-    font-size: 24px;
-    font-weight: 700;
-    color: #000 !important;
-    margin-bottom: 15px;
-    text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #003f7f;
+  text-align: center;
+  margin-bottom: 12px;
 }
 
 /* Table layout */
 #sg-cashbid-widget table {
-    width: 100%;
-    border-collapse: collapse;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
 }
 
-/* Table header */
+/* Header */
 #sg-cashbid-widget thead {
-    background-color: #333 !important;
+  background-color: #333333;
+  color: #ffffff;
 }
 
 #sg-cashbid-widget th {
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #fff !important;
-    padding: 10px;
-    text-align: left;
+  padding: 10px;
+  text-transform: uppercase;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-align: left;
 }
 
-/* Table body */
+/* Body rows */
 #sg-cashbid-widget td {
-    padding: 12px 10px;
-    border-top: 1px solid #eeeeee;
-    font-size: 15px;
+  padding: 10px;
+  border-bottom: 1px solid #e6e6e6;
 }
 
 #sg-cashbid-widget tr:nth-child(odd) {
-    background-color: #f9f9f9;
+  background-color: #f9f9f9;
 }
 
 #sg-cashbid-widget tr:hover {
-    background-color: #f2f6ff;
+  background-color: #f2f6ff;
 }
 
 /* Price movement colors */
 #sg-cashbid-widget .sg-up {
-    color: #0a8a0a;
-    font-weight: 600;
+  color: #0a8a0a;
+  font-weight: 600;
 }
 
 #sg-cashbid-widget .sg-down {
-    color: #c62828;
-    font-weight: 600;
+  color: #c62828;
+  font-weight: 600;
+}
+
+/* Delivery column subtle tone */
+#sg-cashbid-widget .sg-delivery {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* Responsive tweak */
+@media (max-width: 600px) {
+  #sg-cashbid-widget th, #sg-cashbid-widget td {
+    font-size: 14px;
+    padding: 8px;
+  }
 }
