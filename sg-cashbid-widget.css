@@ -146,3 +146,71 @@
   font-size: 14px;
   color: #000; /* location/commodity names black */
 }
+
+/* ============================================================
+   MOBILE RESPONSIVE FIXES
+   ============================================================ */
+
+@media (max-width: 600px) {
+
+  /* Stack filter sections vertically */
+  #sg-cashbid-widget #sg-filter-bar {
+    flex-direction: column;
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  /* Make each filter section full width */
+  #sg-cashbid-widget .sg-filter-section {
+    width: 100%;
+  }
+
+  /* Make titles larger and easier to tap */
+  #sg-cashbid-widget .sg-filter-title {
+    font-size: 18px;
+    padding: 10px 0;
+  }
+
+  /* Make dropdowns full width */
+  #sg-cashbid-widget .sg-filter-content {
+    position: relative;   /* no floating on mobile */
+    top: 0;
+    left: 0;
+    min-width: 100%;
+    max-height: none;
+    box-shadow: none;
+    border-radius: 6px;
+    margin-top: 8px;
+  }
+
+  /* Bigger tap targets */
+  #sg-cashbid-widget .sg-filter-content label {
+    padding: 10px 0;
+    font-size: 16px;
+  }
+
+  #sg-cashbid-widget .sg-filter-content input[type="checkbox"] {
+    transform: scale(1.4);
+  }
+
+  /* Table readability improvements */
+  #sg-cashbid-widget table {
+    font-size: 14px;
+  }
+
+  #sg-cashbid-widget th {
+    font-size: 12px;
+    padding: 8px;
+  }
+
+  #sg-cashbid-widget td {
+    padding: 8px;
+  }
+
+  /* Location heading spacing */
+  #sg-cashbid-widget .sg-location {
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+}
+
