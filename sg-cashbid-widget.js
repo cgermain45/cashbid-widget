@@ -52,6 +52,14 @@
   const comContainer = widget.querySelector("#sg-filter-commodities");
   const tablesContainer = widget.querySelector("#sg-location-tables");
 
+    /* ------------------------------------------------------------
+      Force menus closed on initial load
+     ------------------------------------------------------------ */
+widget.querySelectorAll(".sg-filter-content").forEach(c => {
+  c.style.display = "none";
+});
+
+  
   /* ------------------------------------------------------------
      Fetch data
      ------------------------------------------------------------ */
