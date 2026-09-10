@@ -3,27 +3,18 @@
      CASH BID WIDGET — DATA-DRIVEN EMBED VERSION
      ============================================================ */
 
-  /* ------------------------------------------------------------
-     Locate widget root
-     ------------------------------------------------------------ */
   const widget = document.getElementById("sg-cashbid-widget");
   if (!widget) return;
 
-  /* ------------------------------------------------------------
-     Resolve JSON source (client override or default)
-     ------------------------------------------------------------ */
   const sg_url =
     widget.dataset.json ||
     "https://stonegrain.agricharts.com/inc/cashbids/cashbids-json.php";
 
-  /* ------------------------------------------------------------
-     State
-     ------------------------------------------------------------ */
   let sg_locations = [];
   let sg_allCommodities = new Set();
 
   /* ------------------------------------------------------------
-     Build base HTML structure (injected automatically)
+     Build base HTML structure
      ------------------------------------------------------------ */
   widget.innerHTML = `
     <div id="sg-filter-bar">
@@ -45,21 +36,17 @@
     <div id="sg-location-tables"></div>
   `;
 
-  /* ------------------------------------------------------------
-     DOM references
-     ------------------------------------------------------------ */
   const locContainer = widget.querySelector("#sg-filter-locations");
   const comContainer = widget.querySelector("#sg-filter-commodities");
   const tablesContainer = widget.querySelector("#sg-location-tables");
 
-    /* ------------------------------------------------------------
-      Force menus closed on initial load
+  /* ------------------------------------------------------------
+     Force menus closed on initial load
      ------------------------------------------------------------ */
-widget.querySelectorAll(".sg-filter-content").forEach(c => {
-  c.style.display = "none";
-});
+  widget.querySelectorAll(".sg-filter-content").forEach(c => {
+    c.style.display = "none";
+  });
 
-  
   /* ------------------------------------------------------------
      Fetch data
      ------------------------------------------------------------ */
@@ -82,7 +69,7 @@ widget.querySelectorAll(".sg-filter-content").forEach(c => {
     });
 
   /* ------------------------------------------------------------
-     Enable dropdown menus
+     Dropdown toggle behavior
      ------------------------------------------------------------ */
   widget.addEventListener("click", (e) => {
     const title = e.target.closest(".sg-collapsible");
@@ -92,16 +79,19 @@ widget.querySelectorAll(".sg-filter-content").forEach(c => {
     const content = widget.querySelector("#" + targetId);
     const isOpen = content.style.display === "block";
 
-    // Close all
+    // Close all menus
     widget.querySelectorAll(".sg-filter-content").forEach(c => c.style.display = "none");
     widget.querySelectorAll(".sg-collapsible").forEach(t => {
       t.textContent = t.textContent.replace("-", "+");
     });
 
-    // Toggle current
+    // Toggle current menu
     if (!isOpen) {
       content.style.display = "block";
       title.textContent = title.textContent.replace("+", "-");
+    } else {
+      content.style.display = "none";
+      title.textContent = title.textContent.replace("-", "+");
     }
   });
 
