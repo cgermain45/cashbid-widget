@@ -219,4 +219,97 @@
         .map(cb => cb.value);
 
     const selectedCommodities =
-      [...widget.querySelectorAll
+      [...widget.querySelectorAll(".sg-com-check:checked")]
+        .map(cb => cb.value);
+
+    sg_locations.forEach(loc => {
+
+      if (!selectedLocations.includes(loc.name)) {
+        return;
+      }
+
+      let rows = "";
+
+      if (Array.isArray(loc.cashbids)) {
+
+        loc.cashbids.forEach(bid => {
+
+          if (!selectedCommodities.includes(bid.name)) {
+            return;
+          }
+
+          const changeVal =
+            bid.futures_change ||
+            bid.change ||
+            "-";
+
+          const changeNum =
+            parseFloat(changeVal);
+
+          const changeClass =
+            !isNaN(changeNum) && changeNum > 0
+              ? "sg-up"
+              : !isNaN(changeNum) && changeNum < 0
+              ? "sg-down"
+              : "";
+
+          rows += `
+            <tr>
+              <td>${bid.name}</td>
+              <td>${sg_formatDelivery(
+                bid.delivery_start_raw,
+                bid.delivery_end_raw
+              )}</td>
+              <td>${bid.futures || "-"}</td>
+              <td>${bid.basis || "-"}</td>
+              <td>${bid.cashprice || "-"}</td>
+              <td class="${changeClass}">
+                ${changeVal}
+              </td>
+            </tr>
+          `;
+        });
+
+      }
+
+      if (!rows.trim()) {
+        return;
+      }
+
+      tablesContainer.insertAdjacentHTML(
+        "beforeend",
+        `
+        <div class="sg-card">
+
+          <div class="sg-location">
+            ${loc.name}
+          </div>
+
+          <table>
+
+            <thead>
+              <tr>
+                <th>Commodity</th>
+                <th>Delivery</th>
+                <th>Futures</th>
+                <th>Basis</th>
+                <th>Cash Price</th>
+                <th>Change</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${rows}
+            </tbody>
+
+          </table>
+
+        </div>
+        `
+      );
+
+    });
+
+  }
+
+})();
