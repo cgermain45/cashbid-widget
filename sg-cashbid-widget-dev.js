@@ -13,9 +13,6 @@
   let sg_locations = [];
   let sg_allCommodities = new Set();
 
-  /* ------------------------------------------------------------
-     Build base HTML structure
-     ------------------------------------------------------------ */
   widget.innerHTML = `
     <div id="sg-filter-bar">
 
@@ -53,17 +50,11 @@
   const tablesContainer =
     widget.querySelector("#sg-location-tables");
 
-  /* ------------------------------------------------------------
-     Force menus closed on initial load
-     ------------------------------------------------------------ */
   widget.querySelectorAll(".sg-filter-content")
     .forEach(c => {
       c.style.display = "none";
     });
 
-  /* ------------------------------------------------------------
-     Fetch data
-     ------------------------------------------------------------ */
   fetch(sg_url)
     .then(r => {
       if (!r.ok) {
@@ -93,18 +84,13 @@
 
     });
 
-  /* ------------------------------------------------------------
-     Dropdown toggle behavior
-     ------------------------------------------------------------ */
   widget.addEventListener("click", (e) => {
 
-    const title =
-      e.target.closest(".sg-collapsible");
+    const title = e.target.closest(".sg-collapsible");
 
     if (!title) return;
 
-    const targetId =
-      title.dataset.target;
+    const targetId = title.dataset.target;
 
     const content =
       widget.querySelector("#" + targetId);
@@ -112,7 +98,6 @@
     const isOpen =
       content.style.display === "block";
 
-    // Close all menus
     widget.querySelectorAll(".sg-filter-content")
       .forEach(c => {
         c.style.display = "none";
@@ -123,7 +108,6 @@
         t.classList.remove("sg-open");
       });
 
-    // Open selected menu
     if (!isOpen) {
       content.style.display = "block";
       title.classList.add("sg-open");
@@ -131,9 +115,6 @@
 
   });
 
-  /* ------------------------------------------------------------
-     Click outside closes filters
-     ------------------------------------------------------------ */
   document.addEventListener("click", (e) => {
 
     if (!e.target.closest("#sg-cashbid-widget")) {
@@ -152,9 +133,6 @@
 
   });
 
-  /* ------------------------------------------------------------
-     Build checkbox filters
-     ------------------------------------------------------------ */
   function buildFilters() {
 
     locContainer.innerHTML = "";
@@ -162,7 +140,6 @@
 
     sg_allCommodities.clear();
 
-    // Locations
     sg_locations.forEach(loc => {
 
       locContainer.insertAdjacentHTML(
@@ -181,7 +158,6 @@
 
     });
 
-    // Commodities
     sg_locations.forEach(loc => {
 
       if (Array.isArray(loc.cashbids)) {
@@ -219,12 +195,8 @@
       .forEach(cb =>
         cb.addEventListener("change", renderTables)
       );
-
   }
 
-  /* ------------------------------------------------------------
-     Format delivery date
-     ------------------------------------------------------------ */
   function sg_formatDelivery(start, end) {
 
     if (!start || !end) return "-";
@@ -236,12 +208,8 @@
       `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
 
     return fmt(s) + " - " + fmt(e);
-
   }
 
-  /* ------------------------------------------------------------
-     Render location tables
-     ------------------------------------------------------------ */
   function renderTables() {
 
     tablesContainer.innerHTML = "";
@@ -251,97 +219,4 @@
         .map(cb => cb.value);
 
     const selectedCommodities =
-      [...widget.querySelectorAll(".sg-com-check:checked")]
-        .map(cb => cb.value);
-
-    sg_locations.forEach(loc => {
-
-      if (!selectedLocations.includes(loc.name)) {
-        return;
-      }
-
-      let rows = "";
-
-      if (Array.isArray(loc.cashbids)) {
-
-        loc.cashbids.forEach(bid => {
-
-          if (!selectedCommodities.includes(bid.name)) {
-            return;
-          }
-
-          const changeVal =
-            bid.futures_change ||
-            bid.change ||
-            "-";
-
-          const changeNum =
-            parseFloat(changeVal);
-
-          const changeClass =
-            !isNaN(changeNum) && changeNum > 0
-              ? "sg-up"
-              : !isNaN(changeNum) && changeNum < 0
-              ? "sg-down"
-              : "";
-
-          rows += `
-            <tr>
-              <td>${bid.name}</td>
-              <td>${sg_formatDelivery(
-                bid.delivery_start_raw,
-                bid.delivery_end_raw
-              )}</td>
-              <td>${bid.futures || "-"}</td>
-              <td>${bid.basis || "-"}</td>
-              <td>${bid.cashprice || "-"}</td>
-              <td class="${changeClass}">
-                ${changeVal}
-              </td>
-            </tr>
-          `;
-        });
-
-      }
-
-      if (!rows.trim()) {
-        return;
-      }
-
-      tablesContainer.insertAdjacentHTML(
-        "beforeend",
-        `
-        <div class="sg-card">
-
-          <div class="sg-location">
-            ${loc.name}
-          </div>
-
-          <table>
-
-            <thead>
-              <tr>
-                <th>Commodity</th>
-                <th>Delivery</th>
-                <th>Futures</th>
-                <th>Basis</th>
-                <th>Cash Price</th>
-                <th>Change</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              ${rows}
-            </tbody>
-
-          </table>
-
-        </div>
-        `
-      );
-
-    });
-
-  }
-
-})();
+      [...widget.querySelectorAll
