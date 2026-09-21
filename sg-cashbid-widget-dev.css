@@ -142,6 +142,24 @@
   font-size: 13px;
 }
 
+.sg-col-item {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  cursor: grab;
+}
+
+.sg-col-handle {
+  margin-right: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.sg-col-item.sg-dragging {
+  opacity: 0.5;
+}
+
+
 /* Mobile */
 
 @media (max-width: 600px) {
