@@ -1,6 +1,6 @@
 (function () {
   /* ============================================================
-     CASH BID WIDGET — SUPER DELUXE VERSION + COLUMN REORDER
+     CASH BID WIDGET — DELUXE VERSION + COLUMN REORDER (FIXED)
      ============================================================ */
 
   const widget = document.getElementById("sg-cashbid-widget");
@@ -283,7 +283,6 @@
 
     localStorage.setItem("sg-col-order", JSON.stringify(order));
 
-    // Reorder sg_columns array
     sg_columns = order.map(i => sg_columns[i]);
   }
 
@@ -362,7 +361,7 @@
   }
 
   /* ============================================================
-     RENDER TABLES
+     RENDER TABLES (FIXED TO FOLLOW COLUMN ORDER)
      ============================================================ */
 
   function renderTables() {
@@ -400,16 +399,40 @@
                   : "sg-flat"
               : "";
 
-          rows += `
-            <tr>
-              ${selectedColumns.includes(0) ? `<td>${bid.name}</td>` : ""}
-              ${selectedColumns.includes(1) ? `<td>${sg_formatDelivery(bid.delivery_start_raw, bid.delivery_end_raw)}</td>` : ""}
-              ${selectedColumns.includes(2) ? `<td>${bid.futures || "-"}</td>` : ""}
-              ${selectedColumns.includes(3) ? `<td>${bid.basis || "-"}</td>` : ""}
-              ${selectedColumns.includes(4) ? `<td>${bid.cashprice || "-"}</td>` : ""}
-              ${selectedColumns.includes(5) ? `<td class="${changeClass}">${changeVal}</td>` : ""}
-            </tr>
-          `;
+          let rowCells = "";
+
+          sg_columns.forEach((col, index) => {
+            if (!selectedColumns.includes(index)) return;
+
+            let value = "-";
+            let extraClass = "";
+
+            switch (col.key) {
+              case "commodity":
+                value = bid.name;
+                break;
+              case "delivery":
+                value = sg_formatDelivery(bid.delivery_start_raw, bid.delivery_end_raw);
+                break;
+              case "futures":
+                value = bid.futures || "-";
+                break;
+              case "basis":
+                value = bid.basis || "-";
+                break;
+              case "cashprice":
+                value = bid.cashprice || "-";
+                break;
+              case "change":
+                value = changeVal;
+                extraClass = changeClass;
+                break;
+            }
+
+            rowCells += `<td class="${extraClass}">${value}</td>`;
+          });
+
+          rows += `<tr>${rowCells}</tr>`;
         });
       }
 
