@@ -149,6 +149,16 @@
   cursor: grab;
 }
 
+/* Drag Columns functionality */
+.sg-col-item {
+  padding: 4px 0;
+  cursor: grab;
+}
+
+.sg-col-item.sg-dragging {
+  opacity: 0.5;
+}
+
 .sg-col-handle {
   margin-right: 6px;
   font-size: 12px;
