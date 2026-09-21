@@ -616,4 +616,4 @@
 
   scheduleHourlyRefresh();
 
-})();
+})();   // <—— THIS MUST BE PRESENT
