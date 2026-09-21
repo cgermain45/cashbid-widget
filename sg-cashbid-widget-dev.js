@@ -145,7 +145,7 @@
   });
 
   /* ============================================================
-     BUILD FILTERS (WITH DRAGGABLE COLUMN ITEMS)
+     BUILD FILTERS
      ============================================================ */
 
   function buildFilters() {
@@ -155,9 +155,7 @@
     dateContainer.innerHTML = "";
     sg_allCommodities.clear();
 
-    /* ------------------------------
-       LOCATION CHECKBOXES
-       ------------------------------ */
+    // Locations
     sg_locations.forEach(loc => {
       locContainer.insertAdjacentHTML(
         "beforeend",
@@ -170,7 +168,6 @@
       );
     });
 
-    /* Apply saved location selection */
     const savedLoc = JSON.parse(localStorage.getItem("sg-loc-selected") || "null");
     if (savedLoc) {
       widget.querySelectorAll(".sg-loc-check").forEach(cb => {
@@ -178,9 +175,7 @@
       });
     }
 
-    /* ------------------------------
-       COMMODITY CHECKBOXES
-       ------------------------------ */
+    // Commodities
     sg_locations.forEach(loc => {
       if (Array.isArray(loc.cashbids)) {
         loc.cashbids.forEach(bid => sg_allCommodities.add(bid.name));
@@ -199,7 +194,6 @@
       );
     });
 
-    /* Apply saved commodity selection */
     const savedCom = JSON.parse(localStorage.getItem("sg-com-selected") || "null");
     if (savedCom) {
       widget.querySelectorAll(".sg-com-check").forEach(cb => {
@@ -207,13 +201,10 @@
       });
     }
 
-    /* ------------------------------
-       COLUMN CHECKBOXES (DRAGGABLE, KEY-BASED)
-       ------------------------------ */
-
+    // Columns (draggable)
     const savedCols = JSON.parse(localStorage.getItem("sg-col-state") || "null");
 
-    sg_columns.forEach((col) => {
+    sg_columns.forEach(col => {
       const checked = savedCols ? !!savedCols[col.key] : true;
 
       colContainer.insertAdjacentHTML(
@@ -235,10 +226,7 @@
       `<button id="sg-reset-columns" class="sg-reset-btn">Reset Columns</button>`
     );
 
-    /* ------------------------------
-       DATE FORMAT OPTIONS
-       ------------------------------ */
-
+    // Date formats
     const dateFormats = [
       { id: "mdy_slash", label: "MM/DD/YYYY" },
       { id: "md_slash", label: "M/D" },
@@ -270,10 +258,7 @@
         scheduleRender();
       }));
 
-    /* ------------------------------
-       EVENT LISTENERS
-       ------------------------------ */
-
+    // Listeners
     widget.querySelectorAll(".sg-loc-check, .sg-com-check")
       .forEach(cb => cb.addEventListener("change", () => {
         saveFilterState();
@@ -288,7 +273,6 @@
 
     widget.querySelector("#sg-reset-columns")
       .addEventListener("click", () => {
-        /* Reset order + visibility */
         localStorage.removeItem("sg-col-order");
         localStorage.removeItem("sg-col-state");
         sg_columns = sg_defaultColumns.slice();
@@ -296,17 +280,15 @@
         scheduleRender();
       });
 
-    /* Enable drag-and-drop column reordering */
     enableColumnDrag();
   }
 
   /* ============================================================
-     DRAG-AND-DROP COLUMN REORDERING (KEY-BASED)
+     DRAG-AND-DROP COLUMN REORDERING
      ============================================================ */
 
   function enableColumnDrag() {
     const items = widget.querySelectorAll(".sg-col-item");
-
     let dragSrc = null;
 
     items.forEach(item => {
@@ -342,10 +324,6 @@
     });
   }
 
-  /* ============================================================
-     SAVE COLUMN ORDER (BY KEY)
-     ============================================================ */
-
   function saveColumnOrder() {
     const orderKeys = [...widget.querySelectorAll(".sg-col-item")]
       .map(item => item.dataset.key);
@@ -357,10 +335,6 @@
     );
   }
 
-  /* ============================================================
-     LOAD COLUMN ORDER (BY KEY)
-     ============================================================ */
-
   function loadColumnOrder() {
     const saved = JSON.parse(localStorage.getItem("sg-col-order") || "null");
     if (!saved) return;
@@ -370,10 +344,6 @@
     ).filter(Boolean);
   }
 
-  /* ============================================================
-     SAVE COLUMN VISIBILITY (BY KEY)
-     ============================================================ */
-
   function saveColumnState() {
     const state = {};
     widget.querySelectorAll(".sg-col-check").forEach(cb => {
@@ -381,10 +351,6 @@
     });
     localStorage.setItem("sg-col-state", JSON.stringify(state));
   }
-
-  /* ============================================================
-     SAVE LOCATION + COMMODITY FILTERS
-     ============================================================ */
 
   function saveFilterState() {
     const locSelected =
@@ -428,7 +394,7 @@
   }
 
   /* ============================================================
-     DELIVERY FORMATTER (FULL + MONTH MODES)
+     DELIVERY FORMATTER
      ============================================================ */
 
   function normalize(d) {
@@ -504,7 +470,7 @@
   }
 
   /* ============================================================
-     RENDER TABLES (COLUMN ORDER + VISIBILITY BY KEY)
+     RENDER TABLES
      ============================================================ */
 
   function renderTables() {
@@ -611,3 +577,43 @@
   function scheduleHourlyRefresh() {
     const now = new Date();
 
+    const nextHour = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      now.getHours() + 1,
+      0,
+      0,
+      0
+    );
+
+    const msUntilNextHour = nextHour - now;
+
+    setTimeout(() => {
+      refreshWidget();
+      setInterval(refreshWidget, 60 * 60 * 1000);
+    }, msUntilNextHour);
+  }
+
+  function refreshWidget() {
+    fetch(sg_url)
+      .then(r => {
+        if (!r.ok) throw new Error("Cash bid data unavailable");
+        return r.json();
+      })
+      .then(data => {
+        if (!data || !Array.isArray(data.bids)) {
+          throw new Error("Invalid cash bid format");
+        }
+
+        sg_locations = data.bids;
+
+        buildFilters();
+        renderTables();
+      })
+      .catch(err => console.error("Refresh failed:", err));
+  }
+
+  scheduleHourlyRefresh();
+
+})();
