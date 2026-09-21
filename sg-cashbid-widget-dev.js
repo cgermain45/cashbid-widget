@@ -1,6 +1,6 @@
 (function () {
   /* ============================================================
-     CASH BID WIDGET — DELUXE + COLUMN REORDER + PERSISTENCE
+     CASH BID WIDGET — DELUXE + COLUMN REORDER + DATE FORMATS
      ============================================================ */
 
   const widget = document.getElementById("sg-cashbid-widget");
@@ -58,6 +58,14 @@
         <div id="sg-filter-columns" class="sg-filter-content"></div>
       </div>
 
+      <div class="sg-filter-section">
+        <div class="sg-filter-title sg-collapsible"
+             data-target="sg-filter-dateformat">
+          Date Format
+        </div>
+        <div id="sg-filter-dateformat" class="sg-filter-content"></div>
+      </div>
+
     </div>
 
     <div id="sg-location-tables"></div>
@@ -66,6 +74,7 @@
   const locContainer = widget.querySelector("#sg-filter-locations");
   const comContainer = widget.querySelector("#sg-filter-commodities");
   const colContainer = widget.querySelector("#sg-filter-columns");
+  const dateContainer = widget.querySelector("#sg-filter-dateformat");
   const tablesContainer = widget.querySelector("#sg-location-tables");
 
   widget.querySelectorAll(".sg-filter-content").forEach(c => {
@@ -143,6 +152,7 @@
     locContainer.innerHTML = "";
     comContainer.innerHTML = "";
     colContainer.innerHTML = "";
+    dateContainer.innerHTML = "";
     sg_allCommodities.clear();
 
     /* ------------------------------
@@ -203,7 +213,7 @@
 
     const savedCols = JSON.parse(localStorage.getItem("sg-col-state") || "null");
 
-    sg_columns.forEach((col, index) => {
+    sg_columns.forEach((col) => {
       const checked = savedCols ? !!savedCols[col.key] : true;
 
       colContainer.insertAdjacentHTML(
@@ -224,6 +234,41 @@
       "beforeend",
       `<button id="sg-reset-columns" class="sg-reset-btn">Reset Columns</button>`
     );
+
+    /* ------------------------------
+       DATE FORMAT OPTIONS
+       ------------------------------ */
+
+    const dateFormats = [
+      { id: "mdy_slash", label: "MM/DD/YYYY" },
+      { id: "md_slash", label: "M/D" },
+      { id: "mon_d", label: "Mon D" },
+      { id: "month_d", label: "Month D" },
+      { id: "mon_d_y", label: "Mon D, YYYY" },
+      { id: "month_only", label: "Delivery Month (Full)" },
+      { id: "month_only_short", label: "Delivery Month (Short)" }
+    ];
+
+    const savedFormat = localStorage.getItem("sg-date-format") || "mdy_slash";
+
+    dateFormats.forEach(fmt => {
+      dateContainer.insertAdjacentHTML(
+        "beforeend",
+        `
+        <label>
+          <input type="radio" name="sg-date-format" value="${fmt.id}"
+                 ${fmt.id === savedFormat ? "checked" : ""}>
+          ${fmt.label}
+        </label>
+        `
+      );
+    });
+
+    widget.querySelectorAll("input[name='sg-date-format']")
+      .forEach(r => r.addEventListener("change", () => {
+        localStorage.setItem("sg-date-format", r.value);
+        scheduleRender();
+      }));
 
     /* ------------------------------
        EVENT LISTENERS
@@ -383,7 +428,7 @@
   }
 
   /* ============================================================
-     DELIVERY FORMATTER
+     DELIVERY FORMATTER (FULL + MONTH MODES)
      ============================================================ */
 
   function normalize(d) {
@@ -400,13 +445,62 @@
   function sg_formatDelivery(start, end) {
     if (!start || !end) return "-";
 
+    const fmtSetting = localStorage.getItem("sg-date-format") || "mdy_slash";
+
     const s = new Date(normalize(start));
     const e = new Date(normalize(end));
 
-    const fmt = d =>
-      `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
+    const monthNames = [
+      "January","February","March","April","May","June",
+      "July","August","September","October","November","December"
+    ];
+    const monthShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-    return fmt(s) + " - " + fmt(e);
+    function format(d) {
+      const m = d.getMonth();
+      const day = d.getDate();
+      const y = d.getFullYear();
+
+      switch (fmtSetting) {
+        case "mdy_slash":
+          return `${String(m+1).padStart(2,"0")}/${String(day).padStart(2,"0")}/${y}`;
+
+        case "md_slash":
+          return `${m+1}/${day}`;
+
+        case "mon_d":
+          return `${monthShort[m]} ${day}`;
+
+        case "month_d":
+          return `${monthNames[m]} ${day}`;
+
+        case "mon_d_y":
+          return `${monthShort[m]} ${day}, ${y}`;
+
+        case "month_only": {
+          const sm = s.getMonth();
+          const em = e.getMonth();
+          if (sm === em) return monthNames[sm];
+          return `${monthNames[sm]} - ${monthNames[em]}`;
+        }
+
+        case "month_only_short": {
+          const sm = s.getMonth();
+          const em = e.getMonth();
+          if (sm === em) return monthShort[sm];
+          return `${monthShort[sm]} - ${monthShort[em]}`;
+        }
+
+        default:
+          return `${m+1}/${day}/${y}`;
+      }
+    }
+
+    if (fmtSetting === "month_only" || fmtSetting === "month_only_short") {
+      return format(s);
+    }
+
+    return `${format(s)} - ${format(e)}`;
   }
 
   /* ============================================================
@@ -517,43 +611,3 @@
   function scheduleHourlyRefresh() {
     const now = new Date();
 
-    const nextHour = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      now.getHours() + 1,
-      0,
-      0,
-      0
-    );
-
-    const msUntilNextHour = nextHour - now;
-
-    setTimeout(() => {
-      refreshWidget();
-      setInterval(refreshWidget, 60 * 60 * 1000);
-    }, msUntilNextHour);
-  }
-
-  function refreshWidget() {
-    fetch(sg_url)
-      .then(r => {
-        if (!r.ok) throw new Error("Cash bid data unavailable");
-        return r.json();
-      })
-      .then(data => {
-        if (!data || !Array.isArray(data.bids)) {
-          throw new Error("Invalid cash bid format");
-        }
-
-        sg_locations = data.bids;
-
-        buildFilters();
-        renderTables();
-      })
-      .catch(err => console.error("Refresh failed:", err));
-  }
-
-  scheduleHourlyRefresh();
-
-})();
