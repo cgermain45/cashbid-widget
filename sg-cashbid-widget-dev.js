@@ -1,6 +1,6 @@
 (function () {
   /* ============================================================
-     CASH BID WIDGET — DELUXE VERSION + COLUMN REORDER (FIXED)
+     CASH BID WIDGET — DELUXE + COLUMN REORDER + PERSISTENCE
      ============================================================ */
 
   const widget = document.getElementById("sg-cashbid-widget");
@@ -15,10 +15,10 @@
   let renderTimer = null;
 
   /* ============================================================
-     COLUMN DEFINITIONS (REORDERABLE)
+     COLUMN DEFINITIONS (BASE + CURRENT ORDER)
      ============================================================ */
 
-  let sg_columns = [
+  const sg_defaultColumns = [
     { key: "commodity", label: "Commodity" },
     { key: "delivery", label: "Delivery" },
     { key: "futures", label: "Futures" },
@@ -27,7 +27,8 @@
     { key: "change", label: "Change" }
   ];
 
-  /* Load saved column order BEFORE building filters */
+  let sg_columns = sg_defaultColumns.slice();
+
   loadColumnOrder();
 
   widget.innerHTML = `
@@ -159,6 +160,14 @@
       );
     });
 
+    /* Apply saved location selection */
+    const savedLoc = JSON.parse(localStorage.getItem("sg-loc-selected") || "null");
+    if (savedLoc) {
+      widget.querySelectorAll(".sg-loc-check").forEach(cb => {
+        cb.checked = savedLoc.includes(cb.value);
+      });
+    }
+
     /* ------------------------------
        COMMODITY CHECKBOXES
        ------------------------------ */
@@ -180,21 +189,30 @@
       );
     });
 
+    /* Apply saved commodity selection */
+    const savedCom = JSON.parse(localStorage.getItem("sg-com-selected") || "null");
+    if (savedCom) {
+      widget.querySelectorAll(".sg-com-check").forEach(cb => {
+        cb.checked = savedCom.includes(cb.value);
+      });
+    }
+
     /* ------------------------------
-       COLUMN CHECKBOXES (DRAGGABLE)
+       COLUMN CHECKBOXES (DRAGGABLE, KEY-BASED)
        ------------------------------ */
 
     const savedCols = JSON.parse(localStorage.getItem("sg-col-state") || "null");
 
     sg_columns.forEach((col, index) => {
-      const checked = savedCols ? savedCols[index] : true;
+      const checked = savedCols ? !!savedCols[col.key] : true;
 
       colContainer.insertAdjacentHTML(
         "beforeend",
         `
-        <div class="sg-col-item" draggable="true" data-index="${index}">
+        <div class="sg-col-item" draggable="true" data-key="${col.key}">
+          <span class="sg-col-handle">≡</span>
           <label>
-            <input type="checkbox" class="sg-col-check" data-col="${index}" ${checked ? "checked" : ""}>
+            <input type="checkbox" class="sg-col-check" data-key="${col.key}" ${checked ? "checked" : ""}>
             ${col.label}
           </label>
         </div>
@@ -212,7 +230,10 @@
        ------------------------------ */
 
     widget.querySelectorAll(".sg-loc-check, .sg-com-check")
-      .forEach(cb => cb.addEventListener("change", scheduleRender));
+      .forEach(cb => cb.addEventListener("change", () => {
+        saveFilterState();
+        scheduleRender();
+      }));
 
     widget.querySelectorAll(".sg-col-check")
       .forEach(cb => cb.addEventListener("change", () => {
@@ -222,8 +243,11 @@
 
     widget.querySelector("#sg-reset-columns")
       .addEventListener("click", () => {
-        widget.querySelectorAll(".sg-col-check").forEach(cb => cb.checked = true);
-        saveColumnState();
+        /* Reset order + visibility */
+        localStorage.removeItem("sg-col-order");
+        localStorage.removeItem("sg-col-state");
+        sg_columns = sg_defaultColumns.slice();
+        buildFilters();
         scheduleRender();
       });
 
@@ -232,7 +256,7 @@
   }
 
   /* ============================================================
-     DRAG-AND-DROP COLUMN REORDERING
+     DRAG-AND-DROP COLUMN REORDERING (KEY-BASED)
      ============================================================ */
 
   function enableColumnDrag() {
@@ -274,37 +298,60 @@
   }
 
   /* ============================================================
-     SAVE COLUMN ORDER
+     SAVE COLUMN ORDER (BY KEY)
      ============================================================ */
 
   function saveColumnOrder() {
-    const order = [...widget.querySelectorAll(".sg-col-item")]
-      .map(item => parseInt(item.dataset.index));
+    const orderKeys = [...widget.querySelectorAll(".sg-col-item")]
+      .map(item => item.dataset.key);
 
-    localStorage.setItem("sg-col-order", JSON.stringify(order));
+    localStorage.setItem("sg-col-order", JSON.stringify(orderKeys));
 
-    sg_columns = order.map(i => sg_columns[i]);
+    sg_columns = orderKeys.map(k =>
+      sg_defaultColumns.find(c => c.key === k)
+    );
   }
 
   /* ============================================================
-     LOAD COLUMN ORDER
+     LOAD COLUMN ORDER (BY KEY)
      ============================================================ */
 
   function loadColumnOrder() {
     const saved = JSON.parse(localStorage.getItem("sg-col-order") || "null");
     if (!saved) return;
 
-    sg_columns = saved.map(i => sg_columns[i]);
+    sg_columns = saved.map(k =>
+      sg_defaultColumns.find(c => c.key === k)
+    ).filter(Boolean);
   }
 
   /* ============================================================
-     SAVE COLUMN VISIBILITY
+     SAVE COLUMN VISIBILITY (BY KEY)
      ============================================================ */
 
   function saveColumnState() {
-    const state = [...widget.querySelectorAll(".sg-col-check")]
-      .map(cb => cb.checked);
+    const state = {};
+    widget.querySelectorAll(".sg-col-check").forEach(cb => {
+      state[cb.dataset.key] = cb.checked;
+    });
     localStorage.setItem("sg-col-state", JSON.stringify(state));
+  }
+
+  /* ============================================================
+     SAVE LOCATION + COMMODITY FILTERS
+     ============================================================ */
+
+  function saveFilterState() {
+    const locSelected =
+      [...widget.querySelectorAll(".sg-loc-check:checked")]
+        .map(cb => cb.value);
+
+    const comSelected =
+      [...widget.querySelectorAll(".sg-com-check:checked")]
+        .map(cb => cb.value);
+
+    localStorage.setItem("sg-loc-selected", JSON.stringify(locSelected));
+    localStorage.setItem("sg-com-selected", JSON.stringify(comSelected));
   }
 
   /* ============================================================
@@ -314,11 +361,13 @@
   function autoMobileColumns() {
     if (window.innerWidth > 600) return;
 
-    const priority = [5, 3, 2]; // change, basis, futures
-    const cols = widget.querySelectorAll(".sg-col-check");
+    const priorityKeys = ["change", "basis", "futures"];
+    const checks = widget.querySelectorAll(".sg-col-check");
 
-    priority.forEach(index => {
-      if (cols[index]) cols[index].checked = false;
+    priorityKeys.forEach(key => {
+      checks.forEach(cb => {
+        if (cb.dataset.key === key) cb.checked = false;
+      });
     });
 
     saveColumnState();
@@ -361,7 +410,7 @@
   }
 
   /* ============================================================
-     RENDER TABLES (FIXED TO FOLLOW COLUMN ORDER)
+     RENDER TABLES (COLUMN ORDER + VISIBILITY BY KEY)
      ============================================================ */
 
   function renderTables() {
@@ -375,9 +424,9 @@
       [...widget.querySelectorAll(".sg-com-check:checked")]
         .map(cb => cb.value);
 
-    const selectedColumns =
+    const selectedColumnKeys =
       [...widget.querySelectorAll(".sg-col-check:checked")]
-        .map(cb => parseInt(cb.dataset.col));
+        .map(cb => cb.dataset.key);
 
     sg_locations.forEach(loc => {
       if (!selectedLocations.includes(loc.name)) return;
@@ -401,8 +450,8 @@
 
           let rowCells = "";
 
-          sg_columns.forEach((col, index) => {
-            if (!selectedColumns.includes(index)) return;
+          sg_columns.forEach(col => {
+            if (!selectedColumnKeys.includes(col.key)) return;
 
             let value = "-";
             let extraClass = "";
@@ -439,8 +488,8 @@
       if (!rows.trim()) return;
 
       const headerRow = sg_columns
-        .map((col, index) =>
-          selectedColumns.includes(index)
+        .map(col =>
+          selectedColumnKeys.includes(col.key)
             ? `<th>${col.label}</th>`
             : ""
         )
