@@ -358,5 +358,55 @@
       );
     });
   }
+  /* ============================================================
+   AUTO-REFRESH EVERY HOUR ON THE HOUR
+   ============================================================ */
+
+function scheduleHourlyRefresh() {
+  const now = new Date();
+
+  // Calculate time until next hour
+  const nextHour = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    now.getHours() + 1,
+    0,
+    0,
+    0
+  );
+
+  const msUntilNextHour = nextHour - now;
+
+  // First refresh happens exactly at the next hour
+  setTimeout(() => {
+    refreshWidget();
+
+    // After the first refresh, refresh every hour
+    setInterval(refreshWidget, 60 * 60 * 1000);
+  }, msUntilNextHour);
+}
+
+function refreshWidget() {
+  fetch(sg_url)
+    .then(r => {
+      if (!r.ok) throw new Error("Cash bid data unavailable");
+      return r.json();
+    })
+    .then(data => {
+      if (!data || !Array.isArray(data.bids)) {
+        throw new Error("Invalid cash bid format");
+      }
+
+      sg_locations = data.bids;
+
+      buildFilters();
+      renderTables();
+    })
+    .catch(err => console.error("Refresh failed:", err));
+}
+
+// Start the hourly refresh timer
+scheduleHourlyRefresh();
 
 })();
