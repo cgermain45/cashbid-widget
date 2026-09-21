@@ -31,6 +31,10 @@
 
   loadColumnOrder();
 
+  /* ============================================================
+     WIDGET SHELL
+     ============================================================ */
+
   widget.innerHTML = `
     <div id="sg-filter-bar">
 
@@ -155,7 +159,7 @@
     dateContainer.innerHTML = "";
     sg_allCommodities.clear();
 
-    // Locations
+    /* Locations */
     sg_locations.forEach(loc => {
       locContainer.insertAdjacentHTML(
         "beforeend",
@@ -175,7 +179,7 @@
       });
     }
 
-    // Commodities
+    /* Commodities */
     sg_locations.forEach(loc => {
       if (Array.isArray(loc.cashbids)) {
         loc.cashbids.forEach(bid => sg_allCommodities.add(bid.name));
@@ -201,7 +205,7 @@
       });
     }
 
-    // Columns (draggable)
+    /* Columns (draggable, key-based) */
     const savedCols = JSON.parse(localStorage.getItem("sg-col-state") || "null");
 
     sg_columns.forEach(col => {
@@ -226,7 +230,7 @@
       `<button id="sg-reset-columns" class="sg-reset-btn">Reset Columns</button>`
     );
 
-    // Date formats
+    /* Date formats */
     const dateFormats = [
       { id: "mdy_slash", label: "MM/DD/YYYY" },
       { id: "md_slash", label: "M/D" },
@@ -258,7 +262,7 @@
         scheduleRender();
       }));
 
-    // Listeners
+    /* Listeners */
     widget.querySelectorAll(".sg-loc-check, .sg-com-check")
       .forEach(cb => cb.addEventListener("change", () => {
         saveFilterState();
@@ -570,7 +574,7 @@
     });
   }
 
-    /* ============================================================
+  /* ============================================================
      AUTO-REFRESH EVERY HOUR ON THE HOUR
      ============================================================ */
 
