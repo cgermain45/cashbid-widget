@@ -1,6 +1,6 @@
 (function () {
   /* ============================================================
-     CASH BID WIDGET — SUPER DELUXE VERSION
+     CASH BID WIDGET — SUPER DELUXE VERSION + COLUMN REORDER
      ============================================================ */
 
   const widget = document.getElementById("sg-cashbid-widget");
@@ -14,7 +14,11 @@
   let sg_allCommodities = new Set();
   let renderTimer = null;
 
-  const sg_columns = [
+  /* ============================================================
+     COLUMN DEFINITIONS (REORDERABLE)
+     ============================================================ */
+
+  let sg_columns = [
     { key: "commodity", label: "Commodity" },
     { key: "delivery", label: "Delivery" },
     { key: "futures", label: "Futures" },
@@ -22,6 +26,9 @@
     { key: "cashprice", label: "Cash Price" },
     { key: "change", label: "Change" }
   ];
+
+  /* Load saved column order BEFORE building filters */
+  loadColumnOrder();
 
   widget.innerHTML = `
     <div id="sg-filter-bar">
@@ -128,7 +135,7 @@
   });
 
   /* ============================================================
-     BUILD FILTERS
+     BUILD FILTERS (WITH DRAGGABLE COLUMN ITEMS)
      ============================================================ */
 
   function buildFilters() {
@@ -174,7 +181,7 @@
     });
 
     /* ------------------------------
-       COLUMN CHECKBOXES + RESET BUTTON
+       COLUMN CHECKBOXES (DRAGGABLE)
        ------------------------------ */
 
     const savedCols = JSON.parse(localStorage.getItem("sg-col-state") || "null");
@@ -185,10 +192,12 @@
       colContainer.insertAdjacentHTML(
         "beforeend",
         `
-        <label>
-          <input type="checkbox" class="sg-col-check" data-col="${index}" ${checked ? "checked" : ""}>
-          ${col.label}
-        </label>
+        <div class="sg-col-item" draggable="true" data-index="${index}">
+          <label>
+            <input type="checkbox" class="sg-col-check" data-col="${index}" ${checked ? "checked" : ""}>
+            ${col.label}
+          </label>
+        </div>
         `
       );
     });
@@ -217,10 +226,80 @@
         saveColumnState();
         scheduleRender();
       });
+
+    /* Enable drag-and-drop column reordering */
+    enableColumnDrag();
   }
 
   /* ============================================================
-     SAVE COLUMN STATE
+     DRAG-AND-DROP COLUMN REORDERING
+     ============================================================ */
+
+  function enableColumnDrag() {
+    const items = widget.querySelectorAll(".sg-col-item");
+
+    let dragSrc = null;
+
+    items.forEach(item => {
+      item.addEventListener("dragstart", () => {
+        dragSrc = item;
+        item.classList.add("sg-dragging");
+      });
+
+      item.addEventListener("dragend", () => {
+        item.classList.remove("sg-dragging");
+      });
+
+      item.addEventListener("dragover", e => {
+        e.preventDefault();
+        const target = item;
+        if (target !== dragSrc) {
+          const container = target.parentNode;
+          const srcIndex = [...container.children].indexOf(dragSrc);
+          const targetIndex = [...container.children].indexOf(target);
+
+          if (srcIndex < targetIndex) {
+            container.insertBefore(dragSrc, target.nextSibling);
+          } else {
+            container.insertBefore(dragSrc, target);
+          }
+        }
+      });
+
+      item.addEventListener("drop", () => {
+        saveColumnOrder();
+        scheduleRender();
+      });
+    });
+  }
+
+  /* ============================================================
+     SAVE COLUMN ORDER
+     ============================================================ */
+
+  function saveColumnOrder() {
+    const order = [...widget.querySelectorAll(".sg-col-item")]
+      .map(item => parseInt(item.dataset.index));
+
+    localStorage.setItem("sg-col-order", JSON.stringify(order));
+
+    // Reorder sg_columns array
+    sg_columns = order.map(i => sg_columns[i]);
+  }
+
+  /* ============================================================
+     LOAD COLUMN ORDER
+     ============================================================ */
+
+  function loadColumnOrder() {
+    const saved = JSON.parse(localStorage.getItem("sg-col-order") || "null");
+    if (!saved) return;
+
+    sg_columns = saved.map(i => sg_columns[i]);
+  }
+
+  /* ============================================================
+     SAVE COLUMN VISIBILITY
      ============================================================ */
 
   function saveColumnState() {
@@ -358,55 +437,51 @@
       );
     });
   }
+
   /* ============================================================
-   AUTO-REFRESH EVERY HOUR ON THE HOUR
-   ============================================================ */
+     AUTO-REFRESH EVERY HOUR ON THE HOUR
+     ============================================================ */
 
-function scheduleHourlyRefresh() {
-  const now = new Date();
+  function scheduleHourlyRefresh() {
+    const now = new Date();
 
-  // Calculate time until next hour
-  const nextHour = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    now.getHours() + 1,
-    0,
-    0,
-    0
-  );
+    const nextHour = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      now.getHours() + 1,
+      0,
+      0,
+      0
+    );
 
-  const msUntilNextHour = nextHour - now;
+    const msUntilNextHour = nextHour - now;
 
-  // First refresh happens exactly at the next hour
-  setTimeout(() => {
-    refreshWidget();
+    setTimeout(() => {
+      refreshWidget();
+      setInterval(refreshWidget, 60 * 60 * 1000);
+    }, msUntilNextHour);
+  }
 
-    // After the first refresh, refresh every hour
-    setInterval(refreshWidget, 60 * 60 * 1000);
-  }, msUntilNextHour);
-}
+  function refreshWidget() {
+    fetch(sg_url)
+      .then(r => {
+        if (!r.ok) throw new Error("Cash bid data unavailable");
+        return r.json();
+      })
+      .then(data => {
+        if (!data || !Array.isArray(data.bids)) {
+          throw new Error("Invalid cash bid format");
+        }
 
-function refreshWidget() {
-  fetch(sg_url)
-    .then(r => {
-      if (!r.ok) throw new Error("Cash bid data unavailable");
-      return r.json();
-    })
-    .then(data => {
-      if (!data || !Array.isArray(data.bids)) {
-        throw new Error("Invalid cash bid format");
-      }
+        sg_locations = data.bids;
 
-      sg_locations = data.bids;
+        buildFilters();
+        renderTables();
+      })
+      .catch(err => console.error("Refresh failed:", err));
+  }
 
-      buildFilters();
-      renderTables();
-    })
-    .catch(err => console.error("Refresh failed:", err));
-}
-
-// Start the hourly refresh timer
-scheduleHourlyRefresh();
+  scheduleHourlyRefresh();
 
 })();
