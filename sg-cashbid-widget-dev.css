@@ -310,6 +310,11 @@
   margin-right: 2px;
 }
 
+/* Keep the arrow and value together */
+.sg-cashbid td.sg-col-change {
+  white-space: nowrap;
+}
+
 /* ============================================================
    LAST UPDATED
    ============================================================ */
