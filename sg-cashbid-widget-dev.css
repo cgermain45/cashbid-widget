@@ -336,3 +336,118 @@
     margin: 0 0 12px;
   }
 }
+
+/* ============================================================
+   SETTINGS (COG) MENU
+   ============================================================ */
+
+.sg-filter-section.sg-settings-section {
+  width: auto;
+  margin-left: auto;
+}
+
+.sg-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-top: -7px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #333;
+  cursor: pointer;
+  transition: background .15s ease, transform .3s ease;
+}
+
+.sg-settings-btn:hover,
+.sg-settings-btn:focus-visible {
+  background: #e8eef9;
+  outline: none;
+}
+
+.sg-settings-btn.sg-open {
+  background: #e8eef9;
+  border-color: #d0d7e2;
+}
+
+.sg-settings-btn.sg-open svg {
+  transform: rotate(60deg);
+}
+
+.sg-settings-btn svg {
+  transition: transform .3s ease;
+}
+
+.sg-filter-content.sg-settings-panel {
+  top: 36px;
+  width: 280px;
+  max-height: 70vh;
+  padding: 6px 14px;
+}
+
+.sg-setting {
+  border-bottom: 1px solid #e6e6e6;
+}
+
+.sg-setting:last-child {
+  border-bottom: none;
+}
+
+.sg-setting summary {
+  list-style: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  color: #333;
+  padding: 10px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sg-setting summary::-webkit-details-marker {
+  display: none;
+}
+
+.sg-setting summary::after {
+  content: "▼";
+  font-size: 10px;
+}
+
+.sg-setting[open] summary::after {
+  content: "▲";
+}
+
+.sg-setting-body {
+  padding: 0 0 10px;
+}
+
+@media (max-width: 600px) {
+  .sg-filter-section.sg-settings-section {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .sg-settings-btn {
+    margin-top: 0;
+  }
+
+  .sg-filter-content.sg-settings-panel {
+    top: 0;
+    width: auto;
+    max-height: none;
+  }
+}
+
+@media (max-width: 600px) {
+  #sg-cashbid-widget th.sg-sortable {
+    white-space: normal;
+  }
+
+  .sg-card {
+    overflow-x: auto;
+  }
+}

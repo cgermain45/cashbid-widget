@@ -37,6 +37,8 @@
      ============================================================ */
 
   let sg_sort = loadSortState();
+  let sg_groupBy =
+    localStorage.getItem("sg-group-by") === "commodity" ? "commodity" : "location";
   let sg_lastUpdated = null;
   let sg_lastRefreshFailed = false;
 
@@ -63,28 +65,33 @@
         <div id="sg-filter-commodities" class="sg-filter-content"></div>
       </div>
 
-      <div class="sg-filter-section">
-        <div class="sg-filter-title sg-collapsible"
-             data-target="sg-filter-columns">
-          Columns
-        </div>
-        <div id="sg-filter-columns" class="sg-filter-content"></div>
-      </div>
+      <div class="sg-filter-section sg-settings-section">
+        <button type="button" class="sg-settings-btn sg-collapsible"
+                data-target="sg-settings-panel"
+                aria-label="Settings" title="Settings" aria-haspopup="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path fill="currentColor" d="M19.14 12.94a7.4 7.4 0 0 0 .06-.94 7.4 7.4 0 0 0-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.4 7.4 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.6.22l2.39-.96c.5.38 1.04.7 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.63-.94l2.39.96c.22.08.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/>
+          </svg>
+        </button>
 
-      <div class="sg-filter-section">
-        <div class="sg-filter-title sg-collapsible"
-             data-target="sg-filter-dateformat">
-          Date Format
+        <div id="sg-settings-panel" class="sg-filter-content sg-settings-panel">
+          <details class="sg-setting" open>
+            <summary>Group By</summary>
+            <div id="sg-filter-groupby" class="sg-setting-body"></div>
+          </details>
+          <details class="sg-setting">
+            <summary>Columns</summary>
+            <div id="sg-filter-columns" class="sg-setting-body"></div>
+          </details>
+          <details class="sg-setting">
+            <summary>Sort</summary>
+            <div id="sg-filter-sort" class="sg-setting-body"></div>
+          </details>
+          <details class="sg-setting">
+            <summary>Date Format</summary>
+            <div id="sg-filter-dateformat" class="sg-setting-body"></div>
+          </details>
         </div>
-        <div id="sg-filter-dateformat" class="sg-filter-content"></div>
-      </div>
-
-      <div class="sg-filter-section">
-        <div class="sg-filter-title sg-collapsible"
-             data-target="sg-filter-sort">
-          Sort
-        </div>
-        <div id="sg-filter-sort" class="sg-filter-content"></div>
       </div>
 
     </div>
@@ -99,6 +106,7 @@
   const colContainer = widget.querySelector("#sg-filter-columns");
   const dateContainer = widget.querySelector("#sg-filter-dateformat");
   const sortContainer = widget.querySelector("#sg-filter-sort");
+  const groupContainer = widget.querySelector("#sg-filter-groupby");
   const updatedContainer = widget.querySelector("#sg-last-updated");
   const tablesContainer = widget.querySelector("#sg-location-tables");
 
@@ -153,11 +161,13 @@
 
     widget.querySelectorAll(".sg-collapsible").forEach(t => {
       t.classList.remove("sg-open");
+      t.setAttribute("aria-expanded", "false");
     });
 
     if (!isOpen) {
       content.style.display = "block";
       title.classList.add("sg-open");
+      title.setAttribute("aria-expanded", "true");
     }
   });
 
@@ -170,6 +180,7 @@
       });
       widget.querySelectorAll(".sg-collapsible").forEach(t => {
         t.classList.remove("sg-open");
+        t.setAttribute("aria-expanded", "false");
       });
     }
   });
@@ -235,7 +246,7 @@
     const savedCols = JSON.parse(localStorage.getItem("sg-col-state") || "null");
 
     sg_columns.forEach(col => {
-      const checked = savedCols ? !!savedCols[col.key] : true;
+      const checked = savedCols && col.key in savedCols ? !!savedCols[col.key] : true;
 
       colContainer.insertAdjacentHTML(
         "beforeend",
@@ -244,7 +255,7 @@
           <span class="sg-col-handle">≡</span>
           <label>
             <input type="checkbox" class="sg-col-check" data-key="${col.key}" ${checked ? "checked" : ""}>
-            ${col.label}
+            ${colLabel(col.key)}
           </label>
         </div>
         `
@@ -255,6 +266,30 @@
       "beforeend",
       `<button id="sg-reset-columns" class="sg-reset-btn">Reset Columns</button>`
     );
+
+    /* Group by */
+    groupContainer.innerHTML = [
+      { id: "location", label: "Location" },
+      { id: "commodity", label: "Commodity" }
+    ].map(g => `
+      <label>
+        <input type="radio" name="sg-group-by" value="${g.id}"
+               ${g.id === sg_groupBy ? "checked" : ""}>
+        ${g.label}
+      </label>`).join("");
+
+    groupContainer.querySelectorAll("input[name='sg-group-by']")
+      .forEach(r => r.addEventListener("change", () => {
+        sg_groupBy = r.value;
+        localStorage.setItem("sg-group-by", sg_groupBy);
+        // The first column swaps between Commodity and Location
+        widget.querySelectorAll(".sg-col-item").forEach(item => {
+          const label = item.querySelector("label");
+          label.lastChild.textContent = " " + colLabel(item.dataset.key);
+        });
+        buildSortPanel();
+        scheduleRender();
+      }));
 
     /* Date formats */
     const dateFormats = [
@@ -378,13 +413,13 @@
           return `
             <div class="sg-sort-level">
               <span class="sg-sort-rank">${i + 1}.</span>
-              <span class="sg-sort-name">${col.label}</span>
+              <span class="sg-sort-name">${colLabel(col.key)}</span>
               <button type="button" class="sg-sort-dir" data-key="${s.key}"
                       title="Toggle direction">
                 ${s.dir === "asc" ? "▲ Asc" : "▼ Desc"}
               </button>
               <button type="button" class="sg-sort-remove" data-key="${s.key}"
-                      title="Remove" aria-label="Remove ${col.label} sort">×</button>
+                      title="Remove" aria-label="Remove ${colLabel(col.key)} sort">×</button>
             </div>`;
         }).join("")
       : `<div class="sg-sort-empty">Click a column header to sort.</div>`;
@@ -461,10 +496,11 @@
     return v === null || v === undefined || v === "" ? "-" : v;
   }
 
-  function sortValue(bid, key) {
+  function sortValue(row, key) {
+    const bid = row.bid;
     switch (key) {
       case "commodity":
-        return (bid.name || "").toLowerCase();
+        return rowName(row).toLowerCase();
       case "delivery": {
         const d = new Date(normalize(bid.delivery_start_raw));
         return isNaN(d) ? NaN : d.getTime();
@@ -474,7 +510,7 @@
       case "basis":
         return sg_parseNum(bid.basis);
       case "cashprice":
-        return sg_parseNum(bid.cashprice);
+        return sg_parseNum(sg_roundCashPrice(bid));
       case "change":
         return sg_parseNum(sg_changeValue(bid));
       default:
@@ -486,15 +522,15 @@
     return v === "" || (typeof v === "number" && isNaN(v));
   }
 
-  function sortBids(bids) {
-    if (!sg_sort.length) return bids;
+  function sortRows(rows) {
+    if (!sg_sort.length) return rows;
 
-    return bids
-      .map((bid, i) => ({ bid, i }))
+    return rows
+      .map((row, i) => ({ row, i }))
       .sort((a, b) => {
         for (const s of sg_sort) {
-          const va = sortValue(a.bid, s.key);
-          const vb = sortValue(b.bid, s.key);
+          const va = sortValue(a.row, s.key);
+          const vb = sortValue(b.row, s.key);
           const ma = isMissing(va);
           const mb = isMissing(vb);
 
@@ -511,7 +547,39 @@
         }
         return a.i - b.i;
       })
-      .map(x => x.bid);
+      .map(x => x.row);
+  }
+
+  /* Name shown in the first column: commodity, or location when grouped by commodity */
+  function rowName(row) {
+    return (sg_groupBy === "commodity" ? row.loc.name : row.bid.name) || "";
+  }
+
+  /* ============================================================
+     CASH PRICE ROUNDING
+     bid.rounding is a round-up threshold on the fraction of a cent:
+     .25 → 3.7738 becomes 3.78 (.38¢ ≥ .25); .75 → 3.77; .5 is normal
+     rounding. -1 (or missing/invalid) leaves the price as provided.
+     ============================================================ */
+
+  function sg_roundCashPrice(bid) {
+    const raw = bid.cashprice;
+    if (raw === null || raw === undefined || raw === "") return "-";
+
+    const threshold = sg_parseNum(bid.rounding);
+    const price = sg_parseNum(raw);
+    if (isNaN(price) || isNaN(threshold) || threshold < 0 || threshold > 1) {
+      return raw;
+    }
+
+    const sign = price < 0 ? -1 : 1;
+    // Round to 6 places first so float noise (e.g. 3.77 * 100) doesn't leak in
+    const cents = Math.round(Math.abs(price) * 100 * 1e6) / 1e6;
+    const whole = Math.floor(cents);
+    const frac = Math.round((cents - whole) * 1e6) / 1e6;
+    const rounded = frac > 0 && frac >= threshold ? whole + 1 : whole;
+
+    return (sign * rounded / 100).toFixed(2);
   }
 
   /* ============================================================
@@ -610,6 +678,16 @@
     sg_columns = saved.map(k =>
       sg_defaultColumns.find(c => c.key === k)
     ).filter(Boolean);
+
+    sg_defaultColumns.forEach(c => {
+      if (!sg_columns.includes(c)) sg_columns.push(c);
+    });
+  }
+
+  /* When grouped by commodity, the "commodity" column shows the location */
+  function colLabel(key) {
+    if (key === "commodity" && sg_groupBy === "commodity") return "Location";
+    return sg_defaultColumns.find(c => c.key === key).label;
   }
 
   function saveColumnState() {
@@ -756,74 +834,95 @@
       [...widget.querySelectorAll(".sg-col-check:checked")]
         .map(cb => cb.dataset.key);
 
-    sg_locations.forEach(loc => {
-      if (!selectedLocations.includes(loc.name)) return;
+    /* Build groups of { title, rows: [{ bid, loc }] } */
+    const groups = [];
+    const visibleLocs = sg_locations.filter(loc =>
+      selectedLocations.includes(loc.name) && Array.isArray(loc.cashbids)
+    );
 
+    if (sg_groupBy === "commodity") {
+      const byCom = new Map();
+      [...sg_allCommodities].sort().forEach(com => {
+        if (selectedCommodities.includes(com)) byCom.set(com, []);
+      });
+      visibleLocs.forEach(loc => {
+        loc.cashbids.forEach(bid => {
+          if (byCom.has(bid.name)) byCom.get(bid.name).push({ bid, loc });
+        });
+      });
+      byCom.forEach((rows, com) => groups.push({ title: com, rows }));
+    } else {
+      visibleLocs.forEach(loc => {
+        groups.push({
+          title: loc.name,
+          rows: loc.cashbids
+            .filter(bid => selectedCommodities.includes(bid.name))
+            .map(bid => ({ bid, loc }))
+        });
+      });
+    }
+
+    groups.forEach(group => {
       let rows = "";
 
-      if (Array.isArray(loc.cashbids)) {
-        const bids = sortBids(
-          loc.cashbids.filter(bid => selectedCommodities.includes(bid.name))
-        );
+      sortRows(group.rows).forEach(row => {
+        const bid = row.bid;
+        const changeVal = sg_changeValue(bid);
+        const num = sg_parseNum(changeVal);
+        const changeClass =
+          !isNaN(num)
+            ? num > 0
+              ? "sg-up"
+              : num < 0
+                ? "sg-down"
+                : "sg-flat"
+            : "";
+        const changeArrow =
+          changeClass === "sg-up" ? "▲" :
+          changeClass === "sg-down" ? "▼" :
+          changeClass === "sg-flat" ? "▬" : "";
+        const changeLabel =
+          changeClass === "sg-up" ? "Up" :
+          changeClass === "sg-down" ? "Down" :
+          changeClass === "sg-flat" ? "Unchanged" : "";
 
-        bids.forEach(bid => {
-          const changeVal = sg_changeValue(bid);
-          const num = sg_parseNum(changeVal);
-          const changeClass =
-            !isNaN(num)
-              ? num > 0
-                ? "sg-up"
-                : num < 0
-                  ? "sg-down"
-                  : "sg-flat"
-              : "";
-          const changeArrow =
-            changeClass === "sg-up" ? "▲" :
-            changeClass === "sg-down" ? "▼" :
-            changeClass === "sg-flat" ? "▬" : "";
-          const changeLabel =
-            changeClass === "sg-up" ? "Up" :
-            changeClass === "sg-down" ? "Down" :
-            changeClass === "sg-flat" ? "Unchanged" : "";
+        let rowCells = "";
 
-          let rowCells = "";
+        sg_columns.forEach(col => {
+          if (!selectedColumnKeys.includes(col.key)) return;
 
-          sg_columns.forEach(col => {
-            if (!selectedColumnKeys.includes(col.key)) return;
+          let value = "-";
+          let extraClass = "";
 
-            let value = "-";
-            let extraClass = "";
+          switch (col.key) {
+            case "commodity":
+              value = rowName(row) || "-";
+              break;
+            case "delivery":
+              value = sg_formatDelivery(bid.delivery_start_raw, bid.delivery_end_raw);
+              break;
+            case "futures":
+              value = bid.futures || "-";
+              break;
+            case "basis":
+              value = bid.basis || "-";
+              break;
+            case "cashprice":
+              value = sg_roundCashPrice(bid);
+              break;
+            case "change":
+              value = changeArrow
+                ? `<span class="sg-change-arrow" aria-label="${changeLabel}">${changeArrow}</span> ${changeVal}`
+                : changeVal;
+              extraClass = changeClass;
+              break;
+          }
 
-            switch (col.key) {
-              case "commodity":
-                value = bid.name;
-                break;
-              case "delivery":
-                value = sg_formatDelivery(bid.delivery_start_raw, bid.delivery_end_raw);
-                break;
-              case "futures":
-                value = bid.futures || "-";
-                break;
-              case "basis":
-                value = bid.basis || "-";
-                break;
-              case "cashprice":
-                value = bid.cashprice || "-";
-                break;
-              case "change":
-                value = changeArrow
-                  ? `<span class="sg-change-arrow" aria-label="${changeLabel}">${changeArrow}</span> ${changeVal}`
-                  : changeVal;
-                extraClass = changeClass;
-                break;
-            }
-
-            rowCells += `<td class="${extraClass}">${value}</td>`;
-          });
-
-          rows += `<tr>${rowCells}</tr>`;
+          rowCells += `<td class="${extraClass}">${value}</td>`;
         });
-      }
+
+        rows += `<tr>${rowCells}</tr>`;
+      });
 
       if (!rows.trim()) return;
 
@@ -846,7 +945,7 @@
                       data-sort-key="${col.key}" tabindex="0"
                       aria-sort="${ariaSort}"
                       title="Click to sort · Shift+click to add a sort level">
-                    ${col.label} ${indicator}
+                    ${colLabel(col.key)} ${indicator}
                   </th>`;
         })
         .join("");
@@ -855,7 +954,7 @@
         "beforeend",
         `
         <div class="sg-card">
-          <div class="sg-location">${loc.name}</div>
+          <div class="sg-location">${group.title}</div>
           <table>
             <thead><tr>${headerRow}</tr></thead>
             <tbody>${rows}</tbody>
