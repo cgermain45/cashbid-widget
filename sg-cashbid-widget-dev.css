@@ -218,3 +218,121 @@
     font-size: 20px;
   }
 }
+
+/* ============================================================
+   SORTABLE HEADERS
+   ============================================================ */
+
+#sg-cashbid-widget th.sg-sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+#sg-cashbid-widget th.sg-sortable:hover,
+#sg-cashbid-widget th.sg-sortable:focus-visible {
+  background: #e8eef9;
+  outline: none;
+}
+
+.sg-sort-ind {
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+.sg-sort-ind sup {
+  font-size: 9px;
+  margin-left: 1px;
+}
+
+.sg-sort-none {
+  opacity: 0.35;
+}
+
+/* Sort panel — last dropdown opens leftward so it stays on screen */
+
+@media (min-width: 601px) {
+  .sg-filter-section:last-child .sg-filter-content {
+    left: auto;
+    right: 0;
+  }
+}
+
+.sg-sort-level {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 14px;
+  color: #000;
+}
+
+.sg-sort-rank {
+  width: 18px;
+  color: #6b7280;
+}
+
+.sg-sort-name {
+  flex: 1;
+}
+
+.sg-sort-dir,
+.sg-sort-remove {
+  border: 1px solid #d0d7e2;
+  background: #fff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sg-sort-remove {
+  color: #c62828;
+}
+
+.sg-sort-empty,
+.sg-sort-hint {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 4px 0;
+}
+
+/* ============================================================
+   UP / DOWN COLORS
+   ============================================================ */
+
+.sg-flat {
+  color: #6b7280;
+}
+
+.sg-change-arrow {
+  font-size: 10px;
+  margin-right: 2px;
+}
+
+/* ============================================================
+   LAST UPDATED
+   ============================================================ */
+
+#sg-last-updated {
+  font-size: 13px;
+  color: #6b7280;
+  text-align: right;
+  margin: -8px 4px 12px;
+}
+
+.sg-updated-ago {
+  margin-left: 4px;
+}
+
+.sg-updated-failed {
+  color: #c62828;
+  margin-left: 4px;
+}
+
+@media (max-width: 600px) {
+  #sg-last-updated {
+    text-align: center;
+    margin: 0 0 12px;
+  }
+}

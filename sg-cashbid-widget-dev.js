@@ -32,6 +32,15 @@
   loadColumnOrder();
 
   /* ============================================================
+     SORT STATE (MULTI-COLUMN)
+     Array of { key, dir } — first entry is the primary sort.
+     ============================================================ */
+
+  let sg_sort = loadSortState();
+  let sg_lastUpdated = null;
+  let sg_lastRefreshFailed = false;
+
+  /* ============================================================
      WIDGET SHELL
      ============================================================ */
 
@@ -70,7 +79,17 @@
         <div id="sg-filter-dateformat" class="sg-filter-content"></div>
       </div>
 
+      <div class="sg-filter-section">
+        <div class="sg-filter-title sg-collapsible"
+             data-target="sg-filter-sort">
+          Sort
+        </div>
+        <div id="sg-filter-sort" class="sg-filter-content"></div>
+      </div>
+
     </div>
+
+    <div id="sg-last-updated" aria-live="polite"></div>
 
     <div id="sg-location-tables"></div>
   `;
@@ -79,6 +98,8 @@
   const comContainer = widget.querySelector("#sg-filter-commodities");
   const colContainer = widget.querySelector("#sg-filter-columns");
   const dateContainer = widget.querySelector("#sg-filter-dateformat");
+  const sortContainer = widget.querySelector("#sg-filter-sort");
+  const updatedContainer = widget.querySelector("#sg-last-updated");
   const tablesContainer = widget.querySelector("#sg-location-tables");
 
   widget.querySelectorAll(".sg-filter-content").forEach(c => {
@@ -100,10 +121,13 @@
       }
 
       sg_locations = data.bids;
+      sg_lastUpdated = new Date();
+      sg_lastRefreshFailed = false;
 
       buildFilters();
       autoMobileColumns();
       renderTables();
+      renderLastUpdated();
     })
     .catch(error => {
       console.error(error);
@@ -138,7 +162,9 @@
   });
 
   document.addEventListener("click", (e) => {
-    if (!e.target.closest("#sg-cashbid-widget")) {
+    // composedPath() still includes the widget when the clicked node was
+    // removed by a re-render (e.g. Sort panel buttons)
+    if (!e.composedPath().includes(widget)) {
       widget.querySelectorAll(".sg-filter-content").forEach(c => {
         c.style.display = "none";
       });
@@ -285,7 +311,245 @@
       });
 
     enableColumnDrag();
+    buildSortPanel();
   }
+
+  /* ============================================================
+     SORTING
+     - Click a header: sort by that column only (asc → desc → off)
+     - Shift/Ctrl/Cmd + click (or "multi-sort" mode): add the column
+       as an additional sort level, or toggle/remove it if present
+     ============================================================ */
+
+  function loadSortState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("sg-sort") || "[]");
+      if (!Array.isArray(saved)) return [];
+      return saved.filter(s =>
+        s && sg_defaultColumns.some(c => c.key === s.key) &&
+        (s.dir === "asc" || s.dir === "desc")
+      );
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveSortState() {
+    localStorage.setItem("sg-sort", JSON.stringify(sg_sort));
+  }
+
+  function isMultiSortMode() {
+    return localStorage.getItem("sg-multisort") === "1";
+  }
+
+  function toggleSort(key, additive) {
+    const idx = sg_sort.findIndex(s => s.key === key);
+
+    if (additive) {
+      if (idx === -1) {
+        sg_sort.push({ key, dir: "asc" });
+      } else if (sg_sort[idx].dir === "asc") {
+        sg_sort[idx].dir = "desc";
+      } else {
+        sg_sort.splice(idx, 1);
+      }
+    } else {
+      const current = idx !== -1 ? sg_sort[idx].dir : null;
+      if (sg_sort.length > 1 || current === null) {
+        sg_sort = [{ key, dir: "asc" }];
+      } else if (current === "asc") {
+        sg_sort = [{ key, dir: "desc" }];
+      } else {
+        sg_sort = [];
+      }
+    }
+
+    saveSortState();
+    buildSortPanel();
+    scheduleRender();
+  }
+
+  function buildSortPanel() {
+    const multi = isMultiSortMode();
+
+    const levels = sg_sort.length
+      ? sg_sort.map((s, i) => {
+          const col = sg_defaultColumns.find(c => c.key === s.key);
+          return `
+            <div class="sg-sort-level">
+              <span class="sg-sort-rank">${i + 1}.</span>
+              <span class="sg-sort-name">${col.label}</span>
+              <button type="button" class="sg-sort-dir" data-key="${s.key}"
+                      title="Toggle direction">
+                ${s.dir === "asc" ? "▲ Asc" : "▼ Desc"}
+              </button>
+              <button type="button" class="sg-sort-remove" data-key="${s.key}"
+                      title="Remove" aria-label="Remove ${col.label} sort">×</button>
+            </div>`;
+        }).join("")
+      : `<div class="sg-sort-empty">Click a column header to sort.</div>`;
+
+    sortContainer.innerHTML = `
+      ${levels}
+      <label class="sg-sort-multi">
+        <input type="checkbox" id="sg-multisort" ${multi ? "checked" : ""}>
+        Multi-sort (header clicks add sort levels)
+      </label>
+      <div class="sg-sort-hint">Tip: Shift + click a header to add a sort level.</div>
+      <button type="button" id="sg-clear-sort" class="sg-reset-btn">Clear Sort</button>
+    `;
+
+    sortContainer.querySelectorAll(".sg-sort-dir").forEach(btn =>
+      btn.addEventListener("click", () => {
+        const s = sg_sort.find(x => x.key === btn.dataset.key);
+        if (s) s.dir = s.dir === "asc" ? "desc" : "asc";
+        saveSortState();
+        buildSortPanel();
+        scheduleRender();
+      }));
+
+    sortContainer.querySelectorAll(".sg-sort-remove").forEach(btn =>
+      btn.addEventListener("click", () => {
+        sg_sort = sg_sort.filter(x => x.key !== btn.dataset.key);
+        saveSortState();
+        buildSortPanel();
+        scheduleRender();
+      }));
+
+    sortContainer.querySelector("#sg-multisort")
+      .addEventListener("change", e => {
+        localStorage.setItem("sg-multisort", e.target.checked ? "1" : "0");
+      });
+
+    sortContainer.querySelector("#sg-clear-sort")
+      .addEventListener("click", () => {
+        sg_sort = [];
+        saveSortState();
+        buildSortPanel();
+        scheduleRender();
+      });
+  }
+
+  /* Header clicks (delegated — tables are re-rendered) */
+  tablesContainer.addEventListener("click", e => {
+    const th = e.target.closest("th[data-sort-key]");
+    if (!th) return;
+    const additive = e.shiftKey || e.ctrlKey || e.metaKey || isMultiSortMode();
+    toggleSort(th.dataset.sortKey, additive);
+  });
+
+  tablesContainer.addEventListener("keydown", e => {
+    const th = e.target.closest("th[data-sort-key]");
+    if (!th || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    const additive = e.shiftKey || e.ctrlKey || e.metaKey || isMultiSortMode();
+    toggleSort(th.dataset.sortKey, additive);
+  });
+
+  function sg_parseNum(v) {
+    if (v === null || v === undefined) return NaN;
+    if (typeof v === "number") return v;
+    const str = String(v).trim();
+    if (/^unch/i.test(str)) return 0;
+    const cleaned = str.replace(/[^0-9.+-]/g, "");
+    if (!cleaned) return NaN;
+    return parseFloat(cleaned);
+  }
+
+  function sg_changeValue(bid) {
+    const v = bid.futures_change ?? bid.change;
+    return v === null || v === undefined || v === "" ? "-" : v;
+  }
+
+  function sortValue(bid, key) {
+    switch (key) {
+      case "commodity":
+        return (bid.name || "").toLowerCase();
+      case "delivery": {
+        const d = new Date(normalize(bid.delivery_start_raw));
+        return isNaN(d) ? NaN : d.getTime();
+      }
+      case "futures":
+        return sg_parseNum(bid.futures);
+      case "basis":
+        return sg_parseNum(bid.basis);
+      case "cashprice":
+        return sg_parseNum(bid.cashprice);
+      case "change":
+        return sg_parseNum(sg_changeValue(bid));
+      default:
+        return NaN;
+    }
+  }
+
+  function isMissing(v) {
+    return v === "" || (typeof v === "number" && isNaN(v));
+  }
+
+  function sortBids(bids) {
+    if (!sg_sort.length) return bids;
+
+    return bids
+      .map((bid, i) => ({ bid, i }))
+      .sort((a, b) => {
+        for (const s of sg_sort) {
+          const va = sortValue(a.bid, s.key);
+          const vb = sortValue(b.bid, s.key);
+          const ma = isMissing(va);
+          const mb = isMissing(vb);
+
+          // Missing values always sink to the bottom
+          if (ma && mb) continue;
+          if (ma) return 1;
+          if (mb) return -1;
+
+          let cmp = typeof va === "string"
+            ? va.localeCompare(vb)
+            : va - vb;
+
+          if (cmp !== 0) return s.dir === "asc" ? cmp : -cmp;
+        }
+        return a.i - b.i;
+      })
+      .map(x => x.bid);
+  }
+
+  /* ============================================================
+     LAST UPDATED
+     ============================================================ */
+
+  function renderLastUpdated() {
+    if (!sg_lastUpdated) {
+      updatedContainer.innerHTML = "";
+      return;
+    }
+
+    const stamp = sg_lastUpdated.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    });
+
+    const mins = Math.floor((Date.now() - sg_lastUpdated) / 60000);
+    const ago =
+      mins < 1 ? "just now" :
+      mins === 1 ? "1 min ago" :
+      mins < 60 ? `${mins} mins ago` :
+      Math.floor(mins / 60) === 1 ? "1 hr ago" :
+      `${Math.floor(mins / 60)} hrs ago`;
+
+    updatedContainer.innerHTML = `
+      Last updated: <time datetime="${sg_lastUpdated.toISOString()}">${stamp}</time>
+      <span class="sg-updated-ago">(${ago})</span>
+      ${sg_lastRefreshFailed
+        ? `<span class="sg-updated-failed">· Latest refresh failed</span>`
+        : ""}
+    `;
+  }
+
+  setInterval(renderLastUpdated, 60 * 1000);
 
   /* ============================================================
      DRAG-AND-DROP COLUMN REORDERING
@@ -498,11 +762,13 @@
       let rows = "";
 
       if (Array.isArray(loc.cashbids)) {
-        loc.cashbids.forEach(bid => {
-          if (!selectedCommodities.includes(bid.name)) return;
+        const bids = sortBids(
+          loc.cashbids.filter(bid => selectedCommodities.includes(bid.name))
+        );
 
-          const changeVal = bid.futures_change || bid.change || "-";
-          const num = Number(changeVal);
+        bids.forEach(bid => {
+          const changeVal = sg_changeValue(bid);
+          const num = sg_parseNum(changeVal);
           const changeClass =
             !isNaN(num)
               ? num > 0
@@ -511,6 +777,14 @@
                   ? "sg-down"
                   : "sg-flat"
               : "";
+          const changeArrow =
+            changeClass === "sg-up" ? "▲" :
+            changeClass === "sg-down" ? "▼" :
+            changeClass === "sg-flat" ? "▬" : "";
+          const changeLabel =
+            changeClass === "sg-up" ? "Up" :
+            changeClass === "sg-down" ? "Down" :
+            changeClass === "sg-flat" ? "Unchanged" : "";
 
           let rowCells = "";
 
@@ -537,7 +811,9 @@
                 value = bid.cashprice || "-";
                 break;
               case "change":
-                value = changeVal;
+                value = changeArrow
+                  ? `<span class="sg-change-arrow" aria-label="${changeLabel}">${changeArrow}</span> ${changeVal}`
+                  : changeVal;
                 extraClass = changeClass;
                 break;
             }
@@ -552,11 +828,27 @@
       if (!rows.trim()) return;
 
       const headerRow = sg_columns
-        .map(col =>
-          selectedColumnKeys.includes(col.key)
-            ? `<th>${col.label}</th>`
-            : ""
-        )
+        .map(col => {
+          if (!selectedColumnKeys.includes(col.key)) return "";
+
+          const idx = sg_sort.findIndex(s => s.key === col.key);
+          const s = idx !== -1 ? sg_sort[idx] : null;
+          const ariaSort = s
+            ? (s.dir === "asc" ? "ascending" : "descending")
+            : "none";
+          const indicator = s
+            ? `<span class="sg-sort-ind">${s.dir === "asc" ? "▲" : "▼"}${
+                sg_sort.length > 1 ? `<sup>${idx + 1}</sup>` : ""
+              }</span>`
+            : `<span class="sg-sort-ind sg-sort-none">⇅</span>`;
+
+          return `<th class="sg-sortable${s ? " sg-sorted" : ""}"
+                      data-sort-key="${col.key}" tabindex="0"
+                      aria-sort="${ariaSort}"
+                      title="Click to sort · Shift+click to add a sort level">
+                    ${col.label} ${indicator}
+                  </th>`;
+        })
         .join("");
 
       tablesContainer.insertAdjacentHTML(
@@ -611,11 +903,18 @@
         }
 
         sg_locations = data.bids;
+        sg_lastUpdated = new Date();
+        sg_lastRefreshFailed = false;
 
         buildFilters();
         renderTables();
+        renderLastUpdated();
       })
-      .catch(err => console.error("Refresh failed:", err));
+      .catch(err => {
+        console.error("Refresh failed:", err);
+        sg_lastRefreshFailed = true;
+        renderLastUpdated();
+      });
   }
 
   scheduleHourlyRefresh();
