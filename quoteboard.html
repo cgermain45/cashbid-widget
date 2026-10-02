@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cash Bid Quoteboard</title>
+
+  <link rel="stylesheet" href="sg-cashbid-widget-dev.css">
+  <link rel="stylesheet" href="sg-quoteboard.css">
+</head>
+<body>
+
+<!--
+  Each panel is a full cash bid widget. Optional attributes:
+    data-json  — default feed URL for new panels
+-->
+<div
+  id="sg-quoteboard"
+  data-json="https://stonegrain.agricharts.com/inc/cashbids/cashbids-json.php">
+</div>
+
+<script src="sg-cashbid-widget-dev.js"></script>
+<script src="sg-quoteboard.js"></script>
+</body>
+</html>
