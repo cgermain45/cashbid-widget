@@ -25,6 +25,23 @@
        SGTicker.mount(el, { json, speed, ... })  → { refresh, destroy }
      ============================================================ */
 
+
+    /* Load sg-ticker.css automatically (from the same folder as this
+     script) unless the page already includes it. Lets the ticker work
+     in CMSs that strip <link> tags from page content. */
+  (function ensureCss() {
+    if (document.querySelector('link[href*="sg-ticker.css"], style[data-sg-ticker-css]')) return;
+    const me = document.currentScript;
+    const base = me && me.src
+      ? me.src.replace(/[^\/]*(\?.*)?$/, "")
+      : "https://cgermain45.github.io/cashbid-widget/";
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = base + "sg-ticker.css";
+    link.setAttribute("data-sg-ticker-css", "");
+    document.head.appendChild(link);
+  })();
+  
   const DEFAULT_FEED =
     "https://stonegrain.agricharts.com/inc/cashbids/cashbids-json.php";
 
