@@ -137,9 +137,7 @@
       </div>
     </header>
 
-    <div class="qb-ticker" aria-label="Cash bid ticker">
-      <div class="qb-ticker-track"></div>
-    </div>
+    <div class="qb-ticker"></div>
 
     <main class="qb-board" aria-label="Quoteboard panels"></main>
 
@@ -181,7 +179,6 @@
 
   const board = root.querySelector(".qb-board");
   const tickerEl = root.querySelector(".qb-ticker");
-  const tickerTrack = root.querySelector(".qb-ticker-track");
   const dialog = root.querySelector(".qb-dialog");
 
   /* ============================================================
@@ -265,6 +262,7 @@
     const el = createPanel(p);
     board.appendChild(el);
     updateEmptyState();
+    loadTicker(true);
     el.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
@@ -278,6 +276,7 @@
     const el = board.querySelector(`.qb-panel[data-id="${id}"]`);
     if (el) el.remove();
     updateEmptyState();
+    loadTicker(true);
   }
 
   function updateEmptyState() {
@@ -433,6 +432,7 @@
       const order = [...board.querySelectorAll(".qb-panel")].map(el => el.dataset.id);
       layout.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
       saveLayout();
+      loadTicker(true);
     }
 
     document.addEventListener("pointermove", onMove);
@@ -484,67 +484,25 @@
 
   /* ============================================================
      TICKER
-     One item per location + commodity (nearest delivery), from the
-     first panel's feed.
+     The standalone ticker widget (sg-ticker.js), fed from the first
+     panel's feed. The board drives its refresh.
      ============================================================ */
 
-  const monthShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  let ticker = null;
+  let tickerUrl = null;
 
-  function loadTicker() {
-    if (!prefs.ticker) return;
+  function loadTicker(onlyIfFeedChanged) {
+    if (!prefs.ticker || !window.SGTicker) return;
     const url = (layout[0] && layout[0].json) || DEFAULT_FEED;
 
-    fetch(url, { cache: "no-cache" })
-      .then(r => {
-        if (!r.ok) throw new Error("Ticker data unavailable");
-        return r.json();
-      })
-      .then(data => renderTicker(Array.isArray(data && data.bids) ? data.bids : []))
-      .catch(err => {
-        console.error(err);
-        tickerTrack.innerHTML = `<span class="qb-tick qb-tick-muted">Ticker data unavailable</span>`;
-      });
-  }
-
-  function renderTicker(locations) {
-    const items = [];
-
-    locations.forEach(loc => {
-      const seen = new Set();
-      (loc.cashbids || []).forEach(bid => {
-        if (seen.has(bid.name)) return;
-        seen.add(bid.name);
-
-        const cash = window.SGCashBid.roundCashPrice(bid);
-        const changeRaw = bid.futures_change ?? bid.change;
-        const change = window.SGCashBid.parseNum(changeRaw);
-        const dir = isNaN(change) ? "" : change > 0 ? "up" : change < 0 ? "down" : "flat";
-        const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : dir === "flat" ? "▬" : "";
-
-        const start = bid.delivery_start_raw
-          ? new Date(String(bid.delivery_start_raw).replace(/^(\d{2})\/(\d{2})\/(\d{4})$/, "$3-$1-$2"))
-          : null;
-        const month = start && !isNaN(start) ? monthShort[start.getMonth()] : "";
-
-        items.push(`
-          <span class="qb-tick">
-            <span class="qb-tick-loc">${escapeHtml(loc.name)}</span>
-            <span class="qb-tick-sym">${escapeHtml(bid.name)}${month ? " " + month : ""}</span>
-            <span class="qb-tick-px">${escapeHtml(cash)}</span>
-            <span class="qb-tick-chg qb-${dir}">${arrow} ${escapeHtml(changeRaw ?? "")}</span>
-          </span>`);
-      });
-    });
-
-    if (!items.length) {
-      tickerTrack.innerHTML = `<span class="qb-tick qb-tick-muted">No bids</span>`;
+    if (ticker && tickerUrl === url) {
+      if (!onlyIfFeedChanged) ticker.refresh();
       return;
     }
 
-    // Two copies so the marquee loops seamlessly
-    const run = items.join("");
-    tickerTrack.innerHTML = `<div class="qb-ticker-run">${run}</div><div class="qb-ticker-run" aria-hidden="true">${run}</div>`;
-    tickerTrack.style.setProperty("--qb-ticker-duration", Math.max(30, items.length * 4) + "s");
+    if (ticker) ticker.destroy();
+    tickerUrl = url;
+    ticker = window.SGTicker.mount(tickerEl, { json: url, refresh: 0 });
   }
 
   /* ============================================================
@@ -566,7 +524,7 @@
     lockBtn.querySelector(".qb-lock-icon").textContent = prefs.locked ? "🔒" : "🔓";
     lockBtn.querySelector(".qb-btn-label").textContent = prefs.locked ? "Locked" : "Unlocked";
 
-    tickerEl.hidden = !prefs.ticker;
+    tickerEl.hidden = !prefs.ticker || !window.SGTicker;
     tickerBtn.setAttribute("aria-pressed", String(prefs.ticker));
   }
 

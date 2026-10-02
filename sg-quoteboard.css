@@ -170,76 +170,25 @@ body {
 }
 
 /* ============================================================
-   TICKER
+   TICKER (sg-ticker.css) — mapped onto the board's theme
    ============================================================ */
 
-.qb-ticker {
-  overflow: hidden;
-  background: var(--qb-panel-2);
+.qb-ticker.sgt {
+  --sgt-bg: var(--qb-panel-2);
+  --sgt-text: var(--qb-text);
+  --sgt-muted: var(--qb-muted);
+  --sgt-line: var(--qb-line);
+  --sgt-accent: var(--qb-accent);
+  --sgt-label-bg: var(--qb-accent);
+  --sgt-label-text: var(--qb-accent-ink);
+  --sgt-up: var(--qb-up);
+  --sgt-down: var(--qb-down);
+  --sgt-font: var(--qb-mono);
   border-bottom: 1px solid var(--qb-line);
-  font-family: var(--qb-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  white-space: nowrap;
 }
 
 .qb-ticker[hidden] {
   display: none;
-}
-
-.qb-ticker-track {
-  display: flex;
-  width: max-content;
-  animation: qb-marquee var(--qb-ticker-duration, 60s) linear infinite;
-}
-
-.qb-ticker:hover .qb-ticker-track {
-  animation-play-state: paused;
-}
-
-.qb-ticker-run {
-  display: flex;
-}
-
-@keyframes qb-marquee {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-
-.qb-tick {
-  display: inline-flex;
-  gap: 8px;
-  padding: 7px 18px;
-  border-right: 1px solid var(--qb-line);
-}
-
-.qb-tick-loc {
-  color: var(--qb-muted);
-}
-
-.qb-tick-sym {
-  font-weight: 700;
-}
-
-.qb-tick-px {
-  color: var(--qb-accent);
-}
-
-.qb-tick-muted {
-  color: var(--qb-muted);
-}
-
-.qb-up { color: var(--qb-up); }
-.qb-down { color: var(--qb-down); }
-.qb-flat { color: var(--qb-muted); }
-
-@media (prefers-reduced-motion: reduce) {
-  .qb-ticker {
-    overflow-x: auto;
-  }
-  .qb-ticker-track {
-    animation: none;
-  }
 }
 
 /* ============================================================
