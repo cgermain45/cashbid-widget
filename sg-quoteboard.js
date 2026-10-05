@@ -322,12 +322,20 @@
             theme: "dark",
             refresh: 30,
             storagePrefix: PANEL_PREFIX(p.id),
+            editable: true,
             // Optional board-wide settings on #sg-quoteboard
             apikey: root.dataset.futuresApikey || undefined,
             feed: root.dataset.futuresFeed || undefined
           })
         : null;
       if (!api) widgetEl.innerHTML = `<p class="qb-missing">Futures need sg-futures.js on this page.</p>`;
+
+      // Symbols added/removed in the panel are saved with the layout
+      widgetEl.addEventListener("sg:symbols", e => {
+        p.symbols = e.detail.symbols;
+        saveLayout();
+        loadFuturesTicker();
+      });
     } else if (panelType(p) === "weather") {
       el.classList.add("qb-panel-weather");
       api = window.SGWeather

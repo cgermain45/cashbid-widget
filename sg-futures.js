@@ -22,6 +22,8 @@
        data-refresh   Seconds between refreshes (0 = off)   default 30
        data-apikey    Optional built-in API key (public!)
        data-feed      Optional alternate getQuote URL (e.g. a proxy)
+       data-editable  true = viewers can add/remove symbols (default false)
+                      Fires "sg:symbols" with { symbols } on every change.
 
      Ticker:
        <div data-sg-futures-ticker data-symbols="ZCZ26,ZSX26"></div>
@@ -30,7 +32,7 @@
        data-format, data-show-name (true), data-apikey, data-feed.
 
      JavaScript:
-       SGFutures.mount(el, opts)        → { refresh, destroy }
+       SGFutures.mount(el, opts)        → { refresh, destroy, getSymbols, setSymbols }
        SGFutures.mountTicker(el, opts)  → { refresh, destroy }
        SGFutures.setApiKey(key, remember) / SGFutures.signOut()
        SGFutures.frontMonths("ZC", 2)   → ["ZCZ26", "ZCH27"]
@@ -374,6 +376,10 @@
   ];
   const DEFAULT_COLUMNS = ["name", "symbol", "month", "last", "change"];
 
+  // Barchart symbols: ZCZ26, ZC*1, $SPX, ^EURUSD, ES=F …
+  const SYMBOL_RE = /^[A-Z0-9$^][A-Z0-9.*^$=\-]{0,24}$/;
+  const MAX_SYMBOLS = 50;
+
   let widgetCount = 0;
 
   function mount(el, options) {
@@ -393,7 +399,8 @@
         : 30,
       storagePrefix: o.storagePrefix || "",
       apikey: pick("apikey") || "",
-      feed: pick("feed") || ""
+      feed: pick("feed") || "",
+      editable: toBool(pick("editable"), false)
     };
 
     const store = {
@@ -420,6 +427,7 @@
     let timer = null;
     let inFlight = null;
     let loginMessage = "";
+    let pending = new Set(); // symbols added but not fetched yet
 
     /* ---------- shell ---------- */
 
@@ -427,6 +435,14 @@
       el.innerHTML = `
         <div class="sgf-bar">
           <span class="sgf-updated" aria-live="polite"></span>
+          ${cfg.editable ? `
+          <form class="sgf-add" autocomplete="off">
+            <label class="sgf-sr" for="${uid}-add">Add symbol</label>
+            <input id="${uid}-add" name="symbol" type="text" spellcheck="false" autocapitalize="characters"
+                   placeholder="Add symbol, e.g. ZCK27">
+            <button type="submit" class="sgf-btn">Add</button>
+            <span class="sgf-add-msg" role="status" aria-live="polite"></span>
+          </form>` : ""}
           <details class="sgf-menu">
             <summary class="sgf-btn sgf-icon-btn" title="Columns and format" aria-label="Futures settings">
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94a7.4 7.4 0 0 0 .06-.94 7.4 7.4 0 0 0-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.4 7.4 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.6.22l2.39-.96c.5.38 1.04.7 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.63-.94l2.39.96c.22.08.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg>
@@ -465,6 +481,31 @@
       if (signout) signout.addEventListener("click", () => {
         menu.open = false;
         clearAuth();
+      });
+
+      const addForm = el.querySelector(".sgf-add");
+      if (addForm) addForm.addEventListener("submit", e => {
+        e.preventDefault();
+        const input = addForm.elements.symbol;
+        const msg = addForm.querySelector(".sgf-add-msg");
+        const wanted = toList(input.value).map(x => x.toUpperCase());
+        const added = [];
+        const problems = [];
+
+        wanted.forEach(sym => {
+          if (!SYMBOL_RE.test(sym)) problems.push(`"${sym}" isn't a valid symbol`);
+          else if (cfg.symbols.concat(added).some(x => shortKey(x) === shortKey(sym))) problems.push(`${sym} is already listed`);
+          else if (cfg.symbols.length + added.length >= MAX_SYMBOLS) problems.push(`limit is ${MAX_SYMBOLS} symbols`);
+          else added.push(sym);
+        });
+
+        msg.textContent = problems.join("; ");
+        msg.classList.toggle("sgf-add-error", problems.length > 0);
+        if (!added.length) return;
+
+        input.value = "";
+        setSymbols(cfg.symbols.concat(added));
+        if (!problems.length) msg.textContent = `Added ${added.join(", ")}`;
       });
 
     }
@@ -508,17 +549,23 @@
       if (!wrap || !quotes) return;
 
       if (!cfg.symbols.length) {
-        wrap.innerHTML = `<p class="sgf-status">No symbols set for this widget.</p>`;
+        wrap.innerHTML = `<p class="sgf-status">${cfg.editable
+          ? "No symbols yet. Add one above, e.g. ZCZ26 for Corn Dec 26."
+          : "No symbols set for this widget."}</p>`;
         return;
       }
 
       const cols = columns.map(k => COLUMNS.find(c => c.key === k));
       const next = new Map();
+      const removeCell = sym => cfg.editable
+        ? `<td class="sgf-col-remove"><button type="button" class="sgf-remove" data-symbol="${escapeHtml(sym)}"
+              title="Remove ${escapeHtml(sym)}" aria-label="Remove ${escapeHtml(sym)}">×</button></td>`
+        : "";
 
       const rows = cfg.symbols.map(sym => {
         const q = findQuote(quotes, sym);
         if (!q) {
-          return `<tr class="sgf-missing"><td colspan="${cols.length}">${escapeHtml(sym)} — no data</td></tr>`;
+          return `<tr class="sgf-missing"><td colspan="${cols.length}">${escapeHtml(sym)} — ${pending.has(sym) ? "loading…" : "no data"}</td>${removeCell(sym)}</tr>`;
         }
         const last = lastPrice(q);
         next.set(sym, last);
@@ -527,7 +574,7 @@
           ? (last > before ? "up" : "down") : "";
         const fmt = makeFormatter(q, format);
         return `<tr>${cols.map(c =>
-          `<td class="sgf-col-${c.key}${c.num ? " sgf-num" : ""}">${cell(c, q, fmt, flash)}</td>`).join("")}</tr>`;
+          `<td class="sgf-col-${c.key}${c.num ? " sgf-num" : ""}">${cell(c, q, fmt, flash)}</td>`).join("")}${removeCell(sym)}</tr>`;
       }).join("");
 
       if (withFlash) prevLast = next;
@@ -535,7 +582,8 @@
       wrap.innerHTML = `
         <table>
           <thead><tr>${cols.map(c =>
-            `<th class="sgf-col-${c.key}${c.num ? " sgf-num" : ""}"${c.title ? ` title="${escapeHtml(c.title)}"` : ""}>${c.label}</th>`).join("")}</tr></thead>
+            `<th class="sgf-col-${c.key}${c.num ? " sgf-num" : ""}"${c.title ? ` title="${escapeHtml(c.title)}"` : ""}>${c.label}</th>`).join("")}${
+            cfg.editable ? `<th class="sgf-col-remove"><span class="sgf-sr">Remove</span></th>` : ""}</tr></thead>
           <tbody>${rows}</tbody>
         </table>`;
 
@@ -565,11 +613,17 @@
         renderShell();
         el.querySelector(".sgf-table-wrap").innerHTML = `<p class="sgf-status">Loading quotes…</p>`;
       }
+      if (!cfg.symbols.length) {
+        quotes = quotes || {};
+        renderTable(false);
+        return Promise.resolve();
+      }
 
-      inFlight = fetchQuotes(cfg.symbols.length ? cfg.symbols : ["ZCZ26"], auth, cfg.feed)
+      inFlight = fetchQuotes(cfg.symbols, auth, cfg.feed)
         .then(res => {
           quotes = res.quotes;
           lastUpdated = new Date();
+          pending = new Set();
           renderTable(true);
           el.dispatchEvent(new CustomEvent("sg:updated", { detail: { updated: lastUpdated } }));
         })
@@ -609,6 +663,33 @@
       if (menu && menu.open && !e.composedPath().includes(menu)) menu.open = false;
     }
 
+    /* ---------- editing symbols ---------- */
+
+    function setSymbols(list) {
+      const before = cfg.symbols;
+      cfg.symbols = toList(list).map(x => x.toUpperCase());
+      cfg.symbols.filter(x => !before.includes(x)).forEach(x => pending.add(x));
+      el.dispatchEvent(new CustomEvent("sg:symbols", { detail: { symbols: cfg.symbols.slice() } }));
+
+      // Removals show instantly; additions need a fetch
+      renderTable(false);
+      if (cfg.symbols.some(x => !before.includes(x)) && creds()) {
+        (inFlight || Promise.resolve()).then(() => load());
+      }
+    }
+
+    el.addEventListener("click", e => {
+      const btn = e.target.closest(".sgf-remove");
+      if (!btn || !cfg.editable) return;
+      const sym = btn.dataset.symbol;
+      setSymbols(cfg.symbols.filter(x => x !== sym));
+      const msg = el.querySelector(".sgf-add-msg");
+      if (msg) {
+        msg.textContent = `Removed ${sym}`;
+        msg.classList.remove("sgf-add-error");
+      }
+    });
+
     window.addEventListener(AUTH_EVENT, onAuthChange);
     document.addEventListener("click", onDocumentClick);
 
@@ -624,7 +705,13 @@
       delete el.sgFutures;
     }
 
-    const api = { el, refresh: load, destroy };
+    const api = {
+      el,
+      refresh: load,
+      destroy,
+      getSymbols: () => cfg.symbols.slice(),
+      setSymbols
+    };
     el.sgFutures = api;
     return api;
   }
