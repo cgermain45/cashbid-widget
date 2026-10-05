@@ -18,10 +18,17 @@
   const PREFS_KEY = "sg-qb-prefs";
   const PANEL_PREFIX = id => `sg-qb:${id}:`;
 
+  /* Layout grid: 12 columns. Heights are in rows — in "Fit to screen"
+     mode the board is always FIT_ROWS rows tall and fills the window;
+     in scroll mode each row is SCROLL_ROW_PX and the board can grow. */
   const GRID_COLS = 12;
+  const FIT_ROWS = 24;
   const MIN_SPAN = 3;
-  const MIN_HEIGHT = 180;
-  const MAX_HEIGHT = 1600;
+  const MIN_ROWS = 4;
+  const MAX_SCROLL_ROWS = 60;
+  const SCROLL_ROW_PX = 36;
+  const MIN_ROW_PX = 18;      // grid row incl. gap; below this, fit mode lets the board scroll
+  const STACK_BELOW_PX = 900; // narrower screens stack panels in one column
 
   const REFRESH_OPTIONS = [1, 5, 15, 30, 60];
 
@@ -47,23 +54,32 @@
 
   function defaultLayout() {
     return [
-      { id: newId(), title: "Bids by Location", json: DEFAULT_FEED, span: 6, height: 520, groupBy: "location" },
-      { id: newId(), title: "Bids by Commodity", json: DEFAULT_FEED, span: 6, height: 520, groupBy: "commodity" }
+      { id: newId(), title: "Bids by Location", json: DEFAULT_FEED, span: 6, rows: FIT_ROWS, groupBy: "location" },
+      { id: newId(), title: "Bids by Commodity", json: DEFAULT_FEED, span: 6, rows: FIT_ROWS, groupBy: "commodity" }
     ];
   }
 
   let layout = readJSON(LAYOUT_KEY, null);
   if (!Array.isArray(layout)) layout = defaultLayout();
 
+  // Older layouts stored pixel heights; convert them to grid rows
+  layout.forEach(p => {
+    if (!p.rows) {
+      p.rows = Math.max(MIN_ROWS, Math.min(FIT_ROWS, Math.round((p.height || 480) / SCROLL_ROW_PX)));
+    }
+    delete p.height;
+    p.span = Math.max(MIN_SPAN, Math.min(GRID_COLS, Number(p.span) || 6));
+  });
+
   const prefs = Object.assign(
-    { theme: "dark", refreshMin: 5, locked: false, ticker: true, futuresTicker: false },
+    { theme: "dark", refreshMin: 5, locked: false, ticker: true, futuresTicker: false, fit: true },
     readJSON(PREFS_KEY, {})
   );
 
   function saveLayout() {
     // groupBy is only a seed for new panels; the widget owns it afterwards
     writeJSON(LAYOUT_KEY, layout.map(p => {
-      const base = { id: p.id, type: panelType(p), title: p.title, span: p.span, height: p.height };
+      const base = { id: p.id, type: panelType(p), title: p.title, span: p.span, rows: p.rows };
       switch (panelType(p)) {
         case "weather": return Object.assign(base, { lat: p.lat, lon: p.lon, units: p.units });
         case "futures": return Object.assign(base, { symbols: p.symbols, format: p.format });
@@ -140,6 +156,11 @@
         <button type="button" class="qb-btn qb-toggle-futures-ticker" aria-pressed="false" title="Show or hide the futures ticker">
           Futures Ticker
         </button>` : ""}
+        <button type="button" class="qb-btn qb-toggle-fit" aria-pressed="true"
+                title="Fit to screen: the board always fills the window with no scrolling. Turn off to let panels grow past the window.">
+          <span class="qb-fit-icon" aria-hidden="true">⤢</span> <span class="qb-btn-label">Fit to screen</span>
+        </button>
+        <span class="qb-overfull-note" hidden title="There are more panels than fit at full size, so everything is scaled down. Make some panels smaller or turn off Fit to screen.">Scaled to fit</span>
         <button type="button" class="qb-btn qb-toggle-lock" aria-pressed="false" title="Lock layout">
           <span class="qb-lock-icon">🔓</span> <span class="qb-btn-label">Unlocked</span>
         </button>
@@ -266,13 +287,13 @@
     board.innerHTML = "";
     layout.forEach(p => board.appendChild(createPanel(p)));
     updateEmptyState();
+    relayout();
   }
 
   function createPanel(p) {
     const el = document.createElement("section");
     el.className = "qb-panel";
     el.dataset.id = p.id;
-    applySize(el, p);
 
     el.innerHTML = `
       <header class="qb-panel-head">
@@ -360,21 +381,18 @@
     return el;
   }
 
-  function applySize(el, p) {
-    el.style.setProperty("--qb-span", p.span);
-    el.style.setProperty("--qb-height", p.height + "px");
-  }
-
   function panelById(id) {
     return layout.find(p => p.id === id);
   }
 
   function addPanel(p) {
+    p.rows = initialRows(p);
     layout.push(p);
     saveLayout();
     const el = createPanel(p);
     board.appendChild(el);
     updateEmptyState();
+    relayout();
     loadTicker(true);
     loadFuturesTicker();
     el.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -390,6 +408,7 @@
     const el = board.querySelector(`.qb-panel[data-id="${id}"]`);
     if (el) el.remove();
     updateEmptyState();
+    relayout();
     loadTicker(true);
     loadFuturesTicker();
   }
@@ -467,11 +486,173 @@
   }
 
   /* ============================================================
+     LAYOUT ENGINE
+     Panels are packed in order: each one goes to the highest spot
+     where its width fits (leftmost on ties), so a panel sits directly
+     under whatever is above it — no row gaps.
+     ============================================================ */
+
+  let lastRects = new Map(); // id → { left, top, width, height } in board px
+  let metrics = null;        // { pad, gap, colU, rowU } — one grid cell incl. gap
+
+  function pack(list) {
+    const sky = new Array(GRID_COLS).fill(0);
+    const pos = new Map();
+    let bottom = 0;
+
+    list.forEach(p => {
+      const w = Math.max(MIN_SPAN, Math.min(GRID_COLS, p.span));
+      const h = Math.max(MIN_ROWS, p.rows);
+      let bestX = 0;
+      let bestY = Infinity;
+      for (let x = 0; x <= GRID_COLS - w; x++) {
+        const y = Math.max(...sky.slice(x, x + w));
+        if (y < bestY) { bestY = y; bestX = x; }
+      }
+      for (let c = bestX; c < bestX + w; c++) sky[c] = bestY + h;
+      pos.set(p.id, { x: bestX, y: bestY, w, h });
+      bottom = Math.max(bottom, bestY + h);
+    });
+
+    return { pos, bottom };
+  }
+
+  function isStacked() {
+    return window.innerWidth < STACK_BELOW_PX;
+  }
+
+  function fitMode() {
+    return prefs.fit && !isStacked();
+  }
+
+  /* Position every panel. dragId: that panel follows the pointer and
+     the placeholder takes its slot instead. */
+  function relayout(dragId) {
+    const stacked = isStacked();
+    const fit = fitMode();
+    root.classList.toggle("qb-stacked", stacked);
+    root.classList.toggle("qb-fit", fit);
+
+    const panels = [...board.querySelectorAll(".qb-panel")];
+    const overfullNote = root.querySelector(".qb-overfull-note");
+
+    if (stacked) {
+      // One column; panels keep a proportional height and the page scrolls
+      panels.forEach(el => {
+        const p = panelById(el.dataset.id);
+        el.style.left = el.style.top = el.style.width = "";
+        el.style.height = Math.max(280, Math.min(640, (p ? p.rows : 12) * 26)) + "px";
+      });
+      board.style.height = "";
+      overfullNote.hidden = true;
+      metrics = null;
+      return;
+    }
+
+    const cs = getComputedStyle(board);
+    const pad = parseFloat(cs.paddingLeft) || 0;
+    const gap = parseFloat(cs.getPropertyValue("--qb-gap")) || 12;
+    const { pos, bottom } = pack(layout);
+
+    // One grid unit = cell + gap; a panel spanning n units is n*unit - gap
+    const innerW = board.clientWidth - pad * 2;
+    const colU = (innerW + gap) / GRID_COLS;
+
+    let rows = Math.max(bottom, 1);
+    let rowU = SCROLL_ROW_PX;
+    let scaled = false;
+    let grows = !fit;
+
+    if (fit) {
+      board.style.height = "";
+      const innerH = board.clientHeight - pad * 2;
+      rows = Math.max(FIT_ROWS, bottom);
+      scaled = bottom > FIT_ROWS;
+      rowU = (innerH + gap) / rows;
+      if (rowU < MIN_ROW_PX) { rowU = MIN_ROW_PX; grows = true; } // very short window
+    }
+
+    board.style.height = grows ? (pad * 2 + bottom * rowU - gap) + "px" : "";
+
+    overfullNote.hidden = !scaled;
+    metrics = { pad, gap, colU, rowU };
+    lastRects = new Map();
+
+    pos.forEach((r, id) => {
+      const rect = {
+        left: pad + r.x * colU,
+        top: pad + r.y * rowU,
+        width: r.w * colU - gap,
+        height: r.h * rowU - gap
+      };
+      lastRects.set(id, rect);
+
+      const el = id === dragId
+        ? board.querySelector(".qb-placeholder")
+        : board.querySelector(`.qb-panel[data-id="${id}"]`);
+      if (!el) return;
+      el.style.left = rect.left + "px";
+      el.style.top = rect.top + "px";
+      el.style.width = rect.width + "px";
+      el.style.height = rect.height + "px";
+    });
+  }
+
+  /* New panels in fit mode: use free space if there is enough,
+     otherwise make room by shortening the tallest panels in the
+     columns the new panel lands in (never below MIN_KEEP_ROWS).
+     Only if nothing can give way does the board scale down. */
+  const MIN_KEEP_ROWS = 8;
+
+  function initialRows(p) {
+    let wanted = panelType(p) === "weather" ? 14 : 10;
+    if (!prefs.fit) return wanted;
+
+    for (let guard = 0; guard < 400; guard++) {
+      const candidate = { id: "_new", span: p.span, rows: wanted };
+      const { pos, bottom } = pack(layout.concat([candidate]));
+      if (bottom <= FIT_ROWS) return wanted;
+
+      const spot = pos.get("_new");
+      const overlaps = x => {
+        const r = pos.get(x.id);
+        return r.x < spot.x + spot.w && spot.x < r.x + r.w;
+      };
+      const touchesBottom = x => {
+        const r = pos.get(x.id);
+        return r.y + r.h === bottom;
+      };
+
+      const giver = layout
+        .filter(x => x.rows > MIN_KEEP_ROWS && (overlaps(x) || touchesBottom(x)))
+        .sort((a, b) => b.rows - a.rows)[0];
+
+      if (giver) { giver.rows--; continue; }
+      if (wanted > MIN_ROWS) { wanted--; continue; }
+      return wanted; // everything is at its minimum: board shows "Scaled to fit"
+    }
+    return MIN_ROWS;
+  }
+
+  // Re-fit when the window or the board's space changes
+  let relayoutFrame = 0;
+  function scheduleRelayout() {
+    cancelAnimationFrame(relayoutFrame);
+    relayoutFrame = requestAnimationFrame(() => relayout());
+  }
+
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(scheduleRelayout).observe(board);
+  }
+  window.addEventListener("resize", scheduleRelayout);
+
+  /* ============================================================
      DRAG TO MOVE (pointer events — works with mouse and touch)
+     The other panels reflow live while you drag.
      ============================================================ */
 
   board.addEventListener("pointerdown", e => {
-    if (prefs.locked || e.button !== 0) return;
+    if (prefs.locked || e.button !== 0 || isStacked()) return;
 
     const head = e.target.closest(".qb-panel-head");
     if (head && !e.target.closest("button, [contenteditable='true']")) {
@@ -483,54 +664,63 @@
     if (handle) startResize(e, handle.closest(".qb-panel"));
   });
 
+  function boardPoint(ev) {
+    const r = board.getBoundingClientRect();
+    return { x: ev.clientX - r.left + board.scrollLeft, y: ev.clientY - r.top + board.scrollTop };
+  }
+
   function startDrag(e, panel) {
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const rect = panel.getBoundingClientRect();
-    const offsetX = startX - rect.left;
-    const offsetY = startY - rect.top;
+    const id = panel.dataset.id;
+    const start = boardPoint(e);
+    const startLeft = parseFloat(panel.style.left) || 0;
+    const startTop = parseFloat(panel.style.top) || 0;
     let placeholder = null;
     let dragging = false;
+    let lastMove = "";
 
     function begin() {
       dragging = true;
       placeholder = document.createElement("div");
       placeholder.className = "qb-placeholder";
-      placeholder.style.setProperty("--qb-span", panel.style.getPropertyValue("--qb-span"));
-      placeholder.style.setProperty("--qb-height", rect.height + "px");
-      panel.after(placeholder);
-
+      board.appendChild(placeholder);
       panel.classList.add("qb-dragging");
-      panel.style.width = rect.width + "px";
-      panel.style.height = rect.height + "px";
       root.classList.add("qb-is-dragging");
+      relayout(id);
     }
 
     function onMove(ev) {
+      const pt = boardPoint(ev);
       if (!dragging) {
-        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
+        if (Math.hypot(pt.x - start.x, pt.y - start.y) < 6) return;
         begin();
       }
       ev.preventDefault();
-      panel.style.left = ev.clientX - offsetX + "px";
-      panel.style.top = ev.clientY - offsetY + "px";
+      panel.style.left = startLeft + (pt.x - start.x) + "px";
+      panel.style.top = startTop + (pt.y - start.y) + "px";
 
-      const target = document.elementFromPoint(ev.clientX, ev.clientY);
-      const over = target && target.closest(".qb-panel:not(.qb-dragging)");
-      if (!over || !board.contains(over)) return;
+      // Hit-test against slot positions (not the animating DOM)
+      let overId = null;
+      lastRects.forEach((r, otherId) => {
+        if (otherId !== id && pt.x >= r.left && pt.x <= r.left + r.width && pt.y >= r.top && pt.y <= r.top + r.height) {
+          overId = otherId;
+        }
+      });
+      if (!overId) return;
 
-      const r = over.getBoundingClientRect();
-      // Same row → decide by horizontal midpoint, otherwise vertical
-      const sameRow = ev.clientY > r.top && ev.clientY < r.bottom;
-      const before = sameRow
-        ? ev.clientX < r.left + r.width / 2
-        : ev.clientY < r.top + r.height / 2;
+      const r = lastRects.get(overId);
+      const sameRow = pt.y > r.top && pt.y < r.top + r.height;
+      const after = sameRow ? pt.x > r.left + r.width / 2 : pt.y > r.top + r.height / 2;
+      const move = overId + (after ? ">" : "<");
+      if (move === lastMove) return;
+      lastMove = move;
 
-      if (before) {
-        if (over.previousElementSibling !== placeholder) over.before(placeholder);
-      } else if (over.nextElementSibling !== placeholder) {
-        over.after(placeholder);
-      }
+      const dragged = panelById(id);
+      const rest = layout.filter(p => p.id !== id);
+      const idx = rest.findIndex(p => p.id === overId) + (after ? 1 : 0);
+      rest.splice(idx, 0, dragged);
+      if (rest.map(p => p.id).join() === layout.map(p => p.id).join()) return;
+      layout = rest;
+      relayout(id);
     }
 
     function onUp() {
@@ -539,13 +729,10 @@
       document.removeEventListener("pointercancel", onUp);
       if (!dragging) return;
 
-      placeholder.replaceWith(panel);
+      placeholder.remove();
       panel.classList.remove("qb-dragging");
-      panel.style.left = panel.style.top = panel.style.width = panel.style.height = "";
       root.classList.remove("qb-is-dragging");
-
-      const order = [...board.querySelectorAll(".qb-panel")].map(el => el.dataset.id);
-      layout.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+      relayout();
       saveLayout();
       loadTicker(true);
     }
@@ -556,31 +743,47 @@
   }
 
   /* ============================================================
-     RESIZE (width snaps to the 12-column grid, height is free)
+     RESIZE — snaps to grid columns and rows. In fit mode a panel
+     can't grow past the bottom of the screen.
      ============================================================ */
 
   function startResize(e, panel) {
     e.preventDefault();
+    if (!metrics) return;
     const p = panelById(panel.dataset.id);
-    const startX = e.clientX;
-    const startY = e.clientY;
-    const startRect = panel.getBoundingClientRect();
-
-    const styles = getComputedStyle(board);
-    const gap = parseFloat(styles.columnGap) || 0;
-    const colWidth = (board.clientWidth - parseFloat(styles.paddingLeft) -
-      parseFloat(styles.paddingRight) - gap * (GRID_COLS - 1)) / GRID_COLS;
+    const start = boardPoint(e);
+    const startW = parseFloat(panel.style.width) || 0;
+    const startH = parseFloat(panel.style.height) || 0;
+    const { colU, rowU, gap } = metrics;
+    const limit = prefs.fit ? Math.max(FIT_ROWS, pack(layout).bottom) : MAX_SCROLL_ROWS;
 
     panel.classList.add("qb-resizing");
     root.classList.add("qb-is-resizing");
 
+    function fits(span, rows) {
+      const trial = layout.map(x => (x.id === p.id ? { id: x.id, span, rows } : x));
+      return pack(trial).bottom <= limit;
+    }
+
     function onMove(ev) {
-      const width = startRect.width + (ev.clientX - startX);
-      const span = Math.round((width + gap) / (colWidth + gap));
-      p.span = Math.max(MIN_SPAN, Math.min(GRID_COLS, span));
-      p.height = Math.round(Math.max(MIN_HEIGHT,
-        Math.min(MAX_HEIGHT, startRect.height + (ev.clientY - startY))));
-      applySize(panel, p);
+      const pt = boardPoint(ev);
+      let span = Math.round((startW + (pt.x - start.x) + gap) / colU);
+      let rows = Math.round((startH + (pt.y - start.y) + gap) / rowU);
+      span = Math.max(MIN_SPAN, Math.min(GRID_COLS, span));
+      rows = Math.max(MIN_ROWS, Math.min(limit, rows));
+
+      // Shrink the height until it fits; if even that fails keep the old width
+      while (rows > MIN_ROWS && !fits(span, rows)) rows--;
+      if (!fits(span, rows)) {
+        span = p.span;
+        while (rows > MIN_ROWS && !fits(span, rows)) rows--;
+        if (!fits(span, rows)) return;
+      }
+
+      if (span === p.span && rows === p.rows) return;
+      p.span = span;
+      p.rows = rows;
+      relayout();
     }
 
     function onUp() {
@@ -674,6 +877,7 @@
 
   const intervalSelect = root.querySelector(".qb-refresh-interval");
   const lockBtn = root.querySelector(".qb-toggle-lock");
+  const fitBtn = root.querySelector(".qb-toggle-fit");
   const tickerBtn = root.querySelector(".qb-toggle-ticker");
   const futuresTickerBtn = root.querySelector(".qb-toggle-futures-ticker");
 
@@ -684,6 +888,8 @@
     intervalSelect.value = String(prefs.refreshMin);
 
     root.classList.toggle("qb-locked", prefs.locked);
+    fitBtn.setAttribute("aria-pressed", String(prefs.fit));
+    fitBtn.querySelector(".qb-btn-label").textContent = prefs.fit ? "Fit to screen" : "Scrolling";
     lockBtn.setAttribute("aria-pressed", String(prefs.locked));
     lockBtn.querySelector(".qb-lock-icon").textContent = prefs.locked ? "🔒" : "🔓";
     lockBtn.querySelector(".qb-btn-label").textContent = prefs.locked ? "Locked" : "Unlocked";
@@ -718,6 +924,13 @@
   });
 
   root.querySelector(".qb-refresh-all").addEventListener("click", refreshAllNow);
+
+  fitBtn.addEventListener("click", () => {
+    prefs.fit = !prefs.fit;
+    savePrefs();
+    applyPrefs();
+    relayout();
+  });
 
   lockBtn.addEventListener("click", () => {
     prefs.locked = !prefs.locked;
@@ -815,7 +1028,7 @@
       dialog.showModal();
     } else {
       // Very old browsers: fall back to a quick default panel
-      addPanel({ id: newId(), title: "Cash Bids", json: DEFAULT_FEED, span: 6, height: 480 });
+      addPanel({ id: newId(), title: "Cash Bids", json: DEFAULT_FEED, span: 6 });
     }
   }
 
@@ -834,8 +1047,7 @@
         title: String(data.get("title") || "Futures").trim(),
         symbols,
         format: data.get("format") === "fraction" ? "fraction" : "decimal",
-        span: Number(data.get("span")) || 6,
-        height: 360
+        span: Number(data.get("span")) || 6
       });
       return;
     }
@@ -848,8 +1060,7 @@
         lat: Number(Number(data.get("lat")).toFixed(4)),
         lon: Number(Number(data.get("lon")).toFixed(4)),
         units: data.get("units") === "si" ? "si" : "us",
-        span: Number(data.get("span")) || 4,
-        height: 560
+        span: Number(data.get("span")) || 4
       });
       return;
     }
@@ -860,7 +1071,6 @@
       title: String(data.get("title") || "Cash Bids").trim(),
       json: String(data.get("json") || DEFAULT_FEED).trim(),
       span: Number(data.get("span")) || 6,
-      height: 480,
       groupBy: data.get("groupBy") === "commodity" ? "commodity" : "location"
     });
   });
