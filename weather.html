@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weather Widget</title>
+
+  <link rel="stylesheet" href="sg-weather.css">
+
+  <style>
+    :root {
+      --page-bg: #f4f6f9;
+      --page-text: #1f2937;
+      --page-muted: #5b6675;
+      --code-bg: #0f141b;
+      --code-text: #e6edf3;
+      --card-bg: #ffffff;
+      --card-line: #dde3ea;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page-bg: #0b0f14;
+        --page-text: #e6edf3;
+        --page-muted: #8b98a9;
+        --code-bg: #121821;
+        --code-text: #e6edf3;
+        --card-bg: #121821;
+        --card-line: #263142;
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--page-bg);
+      color: var(--page-text);
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 16px 64px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 26px;
+    }
+
+    .lede {
+      margin: 0 0 32px;
+      color: var(--page-muted);
+    }
+
+    section {
+      margin-bottom: 40px;
+    }
+
+    h2 {
+      font-size: 17px;
+      margin: 0 0 4px;
+    }
+
+    section > p {
+      margin: 0 0 12px;
+      color: var(--page-muted);
+      font-size: 14px;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--card-line);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--page-muted);
+    }
+
+    code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 760px) {
+      .demo-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Example of a branded sidebar using the "none" theme */
+    .demo-sidebar {
+      background: #14532d;
+      color: #ecfdf5;
+      border-radius: 10px;
+      padding: 4px;
+    }
+
+    .demo-sidebar [data-sg-weather] {
+      --sgw-sun: #fde68a;
+      --sgw-cloud: #bbf7d0;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+<main>
+
+  <h1>Weather Widget</h1>
+  <p class="lede">Current conditions, alerts, hourly and 7-day forecast from the National Weather Service. Free, no API key, U.S. locations only. Add one script and one <code>&lt;div&gt;</code>.</p>
+
+  <section>
+    <h2>Full width (dark)</h2>
+    <p>Wide layouts show the forecast text for each day. Active NWS alerts appear as expandable banners.</p>
+    <div data-sg-weather data-lat="41.5868" data-lon="-93.6250" data-theme="dark"></div>
+<pre><code>&lt;div data-sg-weather
+     data-lat="41.5868"
+     data-lon="-93.6250"
+     data-theme="dark"&gt;&lt;/div&gt;
+
+&lt;script src="https://cgermain45.github.io/cashbid-widget/sg-weather.js"&gt;&lt;/script&gt;</code></pre>
+    <p style="margin-top:12px">The script loads <code>sg-weather.css</code> from the same folder automatically, so it works in a CMS that strips <code>&lt;link&gt;</code> tags. You can also add the stylesheet yourself.</p>
+  </section>
+
+  <section>
+    <h2>Light and sidebar sizes</h2>
+    <p>The layout adapts to the width of its container, not the screen. The green card uses <code>data-theme="none"</code> to pick up the site's colors.</p>
+    <div class="demo-grid">
+      <div data-sg-weather data-lat="37.6872" data-lon="-97.3301" data-name="Wichita, KS" data-days="5"></div>
+      <div class="demo-sidebar">
+        <div data-sg-weather data-lat="40.8136" data-lon="-96.7026" data-theme="none" data-hours="6" data-days="3" data-units="us"></div>
+      </div>
+    </div>
+<pre><code>&lt;div data-sg-weather
+     data-lat="37.6872" data-lon="-97.3301"
+     data-name="Wichita, KS"
+     data-days="5"&gt;&lt;/div&gt;
+
+&lt;div data-sg-weather
+     data-lat="40.8136" data-lon="-96.7026"
+     data-theme="none"
+     data-hours="6"
+     data-days="3"&gt;&lt;/div&gt;
+
+&lt;style&gt;
+  .sidebar [data-sg-weather] {
+    --sgw-sun: #fde68a;     /* icon colors, borders, etc. are all variables */
+    --sgw-cloud: #bbf7d0;
+  }
+&lt;/style&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>Options</h2>
+    <table>
+      <thead>
+        <tr><th>Attribute</th><th>Default</th><th>What it does</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>data-lat</code>, <code>data-lon</code></td><td>required</td><td>Location in decimal degrees (right-click a spot in Google Maps to copy them). U.S. only.</td></tr>
+        <tr><td><code>data-name</code></td><td>NWS city, state</td><td>Location label shown at the top</td></tr>
+        <tr><td><code>data-units</code></td><td><code>us</code></td><td><code>us</code> (°F, mph, inHg) or <code>si</code> (°C, km/h, hPa)</td></tr>
+        <tr><td><code>data-theme</code></td><td><code>light</code></td><td><code>light</code>, <code>dark</code>, or <code>none</code> (inherit your site's colors)</td></tr>
+        <tr><td><code>data-days</code></td><td><code>7</code></td><td>Days in the forecast list (1–7)</td></tr>
+        <tr><td><code>data-hours</code></td><td><code>12</code></td><td>Hours in the hourly strip (0 hides it)</td></tr>
+        <tr><td><code>data-alerts</code></td><td><code>true</code></td><td>Show active NWS watches, warnings and advisories</td></tr>
+        <tr><td><code>data-refresh</code></td><td><code>15</code></td><td>Minutes between refreshes (0 turns it off)</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:12px">Data: <a href="https://www.weather.gov/documentation/services-web-api">api.weather.gov</a>. NWS data is U.S. government public domain and free for commercial use. The location lookup is cached in the browser for a week, so each refresh makes 3–4 small requests.</p>
+  </section>
+
+</main>
+
+<script src="sg-weather.js"></script>
+</body>
+</html>
