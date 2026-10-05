@@ -15,7 +15,11 @@
 
 <!--
   Panels can be cash bids, futures quotes or weather. Optional attributes:
-    data-json  — default feed URL for new panels
+    data-json            — default cash bid feed URL for new panels
+    data-futures-apikey  — built-in Barchart OnDemand key for futures panels
+                           (visible in page source; otherwise each viewer
+                           enters their own key in the panel)
+    data-futures-feed    — alternate getQuote URL (e.g. a proxy)
 -->
 <div
   id="sg-quoteboard"

@@ -123,9 +123,9 @@
 <main>
 
   <h1>Futures Quotes</h1>
-  <p class="lede">Futures quotes from Barchart OpenFeed, as a table or a scrolling ticker. Viewers sign in with their Barchart username and password inside the widget.</p>
+  <p class="lede">Futures quotes from Barchart OnDemand, as a table or a scrolling ticker. Viewers enter a Barchart OnDemand API key inside the widget.</p>
 
-  <p class="note">Sign-in details are never part of the embed code. They stay in the viewer's browser for the session, or until they sign out if "Remember me" is checked. One sign-in covers every futures table and ticker on the page.</p>
+  <p class="note">By default the API key is never part of the embed code. It stays in the viewer's browser for the session, or until they choose "Forget API key" if "Remember on this device" is checked. One key covers every futures table and ticker on the page. Site owners can build a key in with <code>data-apikey</code>, but anyone can then read it in the page source.</p>
 
   <section>
     <h2>Ticker</h2>
@@ -163,12 +163,14 @@
         <tr><td><code>data-format</code></td><td><code>decimal</code></td><td><code>decimal</code> (497.25) or <code>fraction</code> (497'2, grain eighths)</td></tr>
         <tr><td><code>data-theme</code></td><td>table <code>light</code>, ticker <code>dark</code></td><td><code>light</code>, <code>dark</code>, or <code>none</code> (inherit your site's colors)</td></tr>
         <tr><td><code>data-refresh</code></td><td><code>30</code></td><td>Seconds between refreshes (0 turns it off)</td></tr>
+        <tr><td><code>data-apikey</code></td><td>none</td><td>Builds an OnDemand API key into the widget so viewers aren't asked for one. <strong>Visible to anyone in the page source</strong> — only use a key you're comfortable publishing.</td></tr>
+        <tr><td><code>data-feed</code></td><td>OnDemand <code>getQuote.json</code></td><td>Alternate quote URL with the same response format, e.g. your own proxy</td></tr>
         <tr><td><code>data-label</code></td><td><code>Futures</code></td><td>Ticker only. Badge text, or <code>""</code> to hide it.</td></tr>
         <tr><td><code>data-speed</code></td><td><code>50</code></td><td>Ticker only. Scroll speed in pixels per second.</td></tr>
         <tr><td><code>data-show-name</code></td><td><code>true</code></td><td>Ticker only. Show the commodity name before the month (e.g. "Corn Dec 26").</td></tr>
       </tbody>
     </table>
-    <p style="margin-top:12px"><strong>Change</strong> is last minus the previous close. <strong>Close</strong> is today's settlement once it's posted, otherwise the previous close. Last prices flash green or red when they move between refreshes.</p>
+    <p style="margin-top:12px"><strong>Change</strong> and <strong>% Chg</strong> come from OnDemand's <code>netChange</code> and <code>percentChange</code>. <strong>Close</strong> is today's close once it's posted, otherwise the previous close. Last prices flash green or red when they move between refreshes.</p>
   </section>
 
 </main>

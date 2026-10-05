@@ -1,11 +1,13 @@
 (function () {
   /* ============================================================
-     FUTURES QUOTES — table + ticker (Barchart OpenFeed)
+     FUTURES QUOTES — table + ticker (Barchart OnDemand getQuote)
      ------------------------------------------------------------
-     Requires a Barchart OpenFeed username and password. Visitors
-     sign in inside the widget; credentials are kept in this
-     browser only (session by default, or "remember me") and are
-     never part of the embed code.
+     Needs a Barchart OnDemand API key. By default each viewer
+     enters the key inside the widget; it's kept in this browser
+     only (session, or "remember me"). A site owner can instead
+     set data-apikey — but then the key is visible in the page
+     source to anyone, so only do that with a key you're happy
+     to publish (e.g. one restricted to your domain).
 
      Table:
        <div data-sg-futures data-symbols="ZCZ26,ZCH27,ZSX26"></div>
@@ -18,22 +20,25 @@
        data-format    decimal (497.25) | fraction (497'2)   default decimal
        data-theme     light | dark | none                  default light
        data-refresh   Seconds between refreshes (0 = off)   default 30
+       data-apikey    Optional built-in API key (public!)
+       data-feed      Optional alternate getQuote URL (e.g. a proxy)
 
      Ticker:
        <div data-sg-futures-ticker data-symbols="ZCZ26,ZSX26"></div>
 
        data-label, data-theme (dark), data-speed, data-refresh,
-       data-format, data-show-name (true) — like the cash bid ticker.
+       data-format, data-show-name (true), data-apikey, data-feed.
 
      JavaScript:
        SGFutures.mount(el, opts)        → { refresh, destroy }
        SGFutures.mountTicker(el, opts)  → { refresh, destroy }
-       SGFutures.signOut()
+       SGFutures.setApiKey(key, remember) / SGFutures.signOut()
        SGFutures.frontMonths("ZC", 2)   → ["ZCZ26", "ZCH27"]
      ============================================================ */
 
-  const FEED = "https://openfeed.aws.barchart.com/stream/quote.jsx";
-  const AUTH_KEY = "sg-futures-auth";
+  const FEED = "https://ondemand.websol.barchart.com/getQuote.json";
+  const AUTH_KEY = "sg-futures-apikey";
+  const LEGACY_AUTH_KEY = "sg-futures-auth"; // old OpenFeed username/password
   const AUTH_EVENT = "sg-futures:auth";
 
   const MONTH_CODES = {
@@ -133,18 +138,18 @@
   }
 
   /* Price display. "fraction" shows eighths for grain-style quotes
-     (basecode 2): 497.25 → 497'2, 497.5 → 497'4 */
+     (OnDemand unitCode -1): 497.25 → 497'2, 497.5 → 497'4 */
   function makeFormatter(quote, mode) {
     const decimals = Math.max(2,
-      decimalsOf(num(quote.lasttrade) ?? num(quote.last)),
-      decimalsOf(num(quote.previous)));
+      decimalsOf(quote.last),
+      decimalsOf(quote.change));
 
     return function (v, signed) {
       if (v === null || v === undefined || isNaN(v)) return "–";
       const sign = signed ? (v > 0 ? "+" : v < 0 ? "-" : "") : (v < 0 ? "-" : "");
       const a = Math.abs(v);
 
-      if (mode === "fraction" && String(quote.basecode) === "2") {
+      if (mode === "fraction" && quote.eighths) {
         const whole = Math.floor(a + 1e-9);
         const eighths = Math.round((a - whole) * 8);
         if (Math.abs((a - whole) * 8 - eighths) < 1e-6) {
@@ -160,15 +165,11 @@
   }
 
   function lastPrice(q) {
-    return num(q.lasttrade) ?? num(q.last);
+    return q.last;
   }
 
   function changeOf(q) {
-    const last = lastPrice(q);
-    const prev = num(q.previous);
-    if (last === null || prev === null) return { change: null, pct: null };
-    const change = Math.round((last - prev) * 1e6) / 1e6;
-    return { change, pct: prev ? change / prev * 100 : null };
+    return { change: q.change, pct: q.pct };
   }
 
   function dirOf(v) {
@@ -178,29 +179,39 @@
   const ARROWS = { up: "▲", down: "▼", flat: "▬" };
 
   /* ============================================================
-     CREDENTIALS (shared by every futures widget on the page)
+     API KEY (shared by every futures widget on the page)
      ============================================================ */
 
   function readStore(store) {
     try {
       const v = JSON.parse(store.getItem(AUTH_KEY) || "null");
-      return v && v.username && v.password ? v : null;
+      return v && v.apikey ? v : null;
     } catch (e) {
       return null;
     }
   }
 
+  // Remove usernames/passwords saved by the earlier OpenFeed version
+  try {
+    sessionStorage.removeItem(LEGACY_AUTH_KEY);
+    localStorage.removeItem(LEGACY_AUTH_KEY);
+  } catch (e) { /* ignore */ }
+
   function getAuth() {
-    return readStore(sessionStorage) || readStore(localStorage);
+    try {
+      return readStore(sessionStorage) || readStore(localStorage);
+    } catch (e) {
+      return null;
+    }
   }
 
   function setAuth(creds, remember) {
-    const value = JSON.stringify({ username: creds.username, password: creds.password });
+    const value = JSON.stringify({ apikey: creds.apikey });
     try {
       (remember ? localStorage : sessionStorage).setItem(AUTH_KEY, value);
       (remember ? sessionStorage : localStorage).removeItem(AUTH_KEY);
     } catch (e) { /* storage blocked: works until the page reloads */ }
-    memoryAuth = { username: creds.username, password: creds.password };
+    memoryAuth = { apikey: creds.apikey };
     window.dispatchEvent(new CustomEvent(AUTH_EVENT));
   }
 
@@ -225,54 +236,79 @@
 
   class AuthError extends Error {}
 
-  function fetchQuotes(symbols, creds) {
+  /* "ZCZ26" and "ZCZ6" refer to the same contract */
+  function shortKey(sym) {
+    const m = /^(.+?)([FGHJKMNQUVXZ])(\d{1,4})$/.exec(String(sym || "").toUpperCase());
+    return m ? m[1] + m[2] + m[3].slice(-1) : String(sym || "").toUpperCase();
+  }
+
+  function findQuote(quotes, sym) {
+    return quotes[String(sym).toUpperCase()] || quotes["~" + shortKey(sym)];
+  }
+
+  /* OnDemand result → the shape the table and ticker render */
+  function normalize(r) {
+    const last = num(r.lastPrice);
+    const change = num(r.netChange);
+    const prevClose = last !== null && change !== null
+      ? Math.round((last - change) * 1e6) / 1e6
+      : null;
+    return {
+      symbol: String(r.symbol || ""),
+      name: r.name || "",
+      eighths: String(r.unitCode) === "-1",
+      last,
+      change,
+      pct: num(r.percentChange),
+      open: num(r.open),
+      high: num(r.high),
+      low: num(r.low),
+      // Today's close once posted, otherwise the previous close
+      close: num(r.close) ?? prevClose,
+      volume: num(r.volume),
+      tradeTime: r.tradeTimestamp || null
+    };
+  }
+
+  function fetchQuotes(symbols, creds, feed) {
     const params = new URLSearchParams({
-      username: creds.username,
-      password: creds.password,
-      symbols: symbols.join(","),
-      version: "json"
+      apikey: creds.apikey,
+      symbols: symbols.join(",")
     });
 
-    return fetch(`${FEED}?${params}`, { cache: "no-store", credentials: "omit" })
+    return fetch(`${feed || FEED}?${params}`, { cache: "no-store", credentials: "omit" })
       .catch(() => {
-        // Never include the URL: it contains the credentials
-        throw new Error("Couldn't reach the Barchart quote service.");
+        // Never include the URL: it contains the API key
+        throw new Error("The browser couldn't load quotes from Barchart OnDemand. "
+          + "This is usually a network or browser-extension block; the browser console has details.");
       })
-      .then(r => {
-        if (r.status === 401 || r.status === 403) {
-          throw new AuthError("Invalid username or password.");
-        }
-        return r.text().then(text => ({ ok: r.ok, status: r.status, text }));
-      })
+      .then(r => r.text().then(text => ({ ok: r.ok, status: r.status, text })))
       .then(({ ok, status, text }) => {
         let json = null;
-        const t = text.trim();
-        try {
-          json = JSON.parse(t);
-        } catch (e) {
-          // Tolerate a body without the outer braces
-          try { json = JSON.parse("{" + t + "}"); } catch (e2) { json = null; }
+        try { json = JSON.parse(text); } catch (e) { json = null; }
+
+        const code = json && json.status ? Number(json.status.code) : status;
+        const message = String((json && json.status && json.status.message) || "").slice(0, 200);
+
+        if (code === 401 || code === 403 || status === 401 || status === 403
+            || /api ?key|unauthori[sz]ed|not authori[sz]ed|forbidden/i.test(message)) {
+          throw new AuthError("That API key wasn't accepted.");
+        }
+        if (!json || !Array.isArray(json.results)) {
+          if (code === 204 || /no data|no results/i.test(message)) return { quotes: {} };
+          throw new Error(message
+            ? `Quote service: ${message}`
+            : (ok ? "Unexpected response from the quote service." : `Quote service error (${status}).`));
         }
 
-        if (!json || typeof json.data !== "object" || json.data === null) {
-          const msg = String((json && (json.error || json.message)) || t).slice(0, 200);
-          if (/auth|login|password|username|credential|denied|invalid user/i.test(msg) || status === 401) {
-            throw new AuthError("Invalid username or password.");
-          }
-          throw new Error(ok ? "Unexpected response from the quote service." : `Quote service error (${status}).`);
-        }
-
-        // Key by longsymbol and by short symbol so either spelling matches
-        const bySymbol = {};
-        Object.keys(json.data).forEach(k => {
-          const q = json.data[k];
-          if (!q) return;
-          bySymbol[k.toUpperCase()] = q;
-          if (q.longsymbol) bySymbol[String(q.longsymbol).toUpperCase()] = q;
-          if (q.symbol) bySymbol[String(q.symbol).toUpperCase()] = q;
+        const quotes = {};
+        json.results.forEach(r => {
+          if (!r || !r.symbol) return;
+          const q = normalize(r);
+          quotes[q.symbol.toUpperCase()] = q;
+          quotes["~" + shortKey(q.symbol)] = q;
         });
-
-        return { quotes: bySymbol, serverTime: json.servertime ? new Date(json.servertime) : new Date() };
+        return { quotes };
       });
   }
 
@@ -285,42 +321,36 @@
   function loginFormHtml(compact, message) {
     const id = "sgf-login-" + (++formCount);
     return `
-      <form class="sgf-login${compact ? " sgf-login-compact" : ""}" autocomplete="on">
-        ${compact ? "" : `<div class="sgf-login-title">Sign in for futures quotes</div>`}
+      <form class="sgf-login${compact ? " sgf-login-compact" : ""}" autocomplete="off">
+        ${compact ? "" : `<div class="sgf-login-title">Enter your API key for futures quotes</div>`}
         ${message ? `<div class="sgf-login-error" role="alert">${escapeHtml(message)}</div>` : ""}
-        <label for="${id}-u" class="${compact ? "sgf-sr" : ""}">Username</label>
-        <input id="${id}-u" name="username" type="text" autocomplete="username" required
-               placeholder="${compact ? "Username" : ""}">
-        <label for="${id}-p" class="${compact ? "sgf-sr" : ""}">Password</label>
-        <input id="${id}-p" name="password" type="password" autocomplete="current-password" required
-               placeholder="${compact ? "Password" : ""}">
+        <label for="${id}-k" class="${compact ? "sgf-sr" : ""}">Barchart OnDemand API key</label>
+        <input id="${id}-k" name="apikey" type="password" autocomplete="off" spellcheck="false" required
+               placeholder="${compact ? "API key" : ""}">
         <label class="sgf-remember">
-          <input name="remember" type="checkbox"> Remember me on this device
+          <input name="remember" type="checkbox"> Remember on this device
         </label>
-        <button type="submit" class="sgf-btn sgf-btn-primary">Sign in</button>
-        ${compact ? "" : `<p class="sgf-login-note">Uses your Barchart OpenFeed account. Your sign-in stays in this browser.</p>`}
+        <button type="submit" class="sgf-btn sgf-btn-primary">Connect</button>
+        ${compact ? "" : `<p class="sgf-login-note">Uses your Barchart OnDemand API key. It stays in this browser.</p>`}
       </form>`;
   }
 
-  /* Wire a form: verify credentials with a real request before saving */
-  function wireLogin(form, symbols, onError) {
+  /* Wire a form: verify the key with a real request before saving */
+  function wireLogin(form, symbols, feed, onError) {
     form.addEventListener("submit", e => {
       e.preventDefault();
-      const creds = {
-        username: form.elements.username.value.trim(),
-        password: form.elements.password.value
-      };
+      const creds = { apikey: form.elements.apikey.value.trim() };
       const remember = form.elements.remember.checked;
       const btn = form.querySelector("button[type=submit]");
       btn.disabled = true;
-      btn.textContent = "Signing in…";
+      btn.textContent = "Connecting…";
 
-      fetchQuotes(symbols.slice(0, 1).length ? symbols.slice(0, 1) : ["ZCZ26"], creds)
+      fetchQuotes(symbols.length ? symbols.slice(0, 1) : ["ZCZ26"], creds, feed)
         .then(() => setAuth(creds, remember))
         .catch(err => {
           btn.disabled = false;
-          btn.textContent = "Sign in";
-          onError(err instanceof AuthError ? err.message : (err.message || "Sign-in failed."));
+          btn.textContent = "Connect";
+          onError(err.message || "Couldn't connect.");
         });
     });
   }
@@ -339,7 +369,7 @@
     { key: "open", label: "Open", num: true },
     { key: "high", label: "High", num: true },
     { key: "low", label: "Low", num: true },
-    { key: "close", label: "Close", num: true, title: "Today's settlement once posted, otherwise the previous close" },
+    { key: "close", label: "Close", num: true, title: "Today's close once posted, otherwise the previous close" },
     { key: "volume", label: "Volume", num: true }
   ];
   const DEFAULT_COLUMNS = ["name", "symbol", "month", "last", "change"];
@@ -361,7 +391,9 @@
       refresh: pick("refresh") !== undefined && pick("refresh") !== ""
         ? Math.max(0, Number(pick("refresh")) || 0)
         : 30,
-      storagePrefix: o.storagePrefix || ""
+      storagePrefix: o.storagePrefix || "",
+      apikey: pick("apikey") || "",
+      feed: pick("feed") || ""
     };
 
     const store = {
@@ -406,7 +438,7 @@
               <div class="sgf-menu-title">Price format</div>
               <label><input type="radio" name="${uid}-format" value="decimal" ${format === "decimal" ? "checked" : ""}> Decimal (497.25)</label>
               <label><input type="radio" name="${uid}-format" value="fraction" ${format === "fraction" ? "checked" : ""}> Fraction (497'2)</label>
-              <button type="button" class="sgf-btn sgf-signout">Sign out</button>
+              ${cfg.apikey ? "" : `<button type="button" class="sgf-btn sgf-signout">Forget API key</button>`}
             </div>
           </details>
         </div>
@@ -429,7 +461,8 @@
         renderTable(false);
       }));
 
-      el.querySelector(".sgf-signout").addEventListener("click", () => {
+      const signout = el.querySelector(".sgf-signout");
+      if (signout) signout.addEventListener("click", () => {
         menu.open = false;
         clearAuth();
       });
@@ -438,7 +471,7 @@
 
     function renderLogin() {
       el.innerHTML = `<div class="sgf-login-wrap">${loginFormHtml(false, loginMessage)}</div>`;
-      wireLogin(el.querySelector("form"), cfg.symbols, msg => {
+      wireLogin(el.querySelector("form"), cfg.symbols, cfg.feed, msg => {
         loginMessage = msg;
         renderLogin();
       });
@@ -449,7 +482,7 @@
     function cell(c, q, fmt, flash) {
       const ch = changeOf(q);
       const dir = dirOf(ch.change);
-      const sym = String(q.longsymbol || q.symbol || "");
+      const sym = q.symbol;
       switch (c.key) {
         case "name": return escapeHtml(q.name || "");
         case "symbol": return escapeHtml(sym);
@@ -461,11 +494,11 @@
         case "pctchange":
           return ch.pct === null ? "–"
             : `<span class="sgf-${dir}">${ch.pct > 0 ? "+" : ""}${ch.pct.toFixed(2)}%</span>`;
-        case "open": return fmt(num(q.open));
-        case "high": return fmt(num(q.high));
-        case "low": return fmt(num(q.low));
-        case "close": return fmt(num(q.settlement) ?? num(q.previous));
-        case "volume": return num(q.volume) === null ? "–" : q.volume.toLocaleString();
+        case "open": return fmt(q.open);
+        case "high": return fmt(q.high);
+        case "low": return fmt(q.low);
+        case "close": return fmt(q.close);
+        case "volume": return q.volume === null ? "–" : q.volume.toLocaleString();
         default: return "";
       }
     }
@@ -483,7 +516,7 @@
       const next = new Map();
 
       const rows = cfg.symbols.map(sym => {
-        const q = quotes[sym];
+        const q = findQuote(quotes, sym);
         if (!q) {
           return `<tr class="sgf-missing"><td colspan="${cols.length}">${escapeHtml(sym)} — no data</td></tr>`;
         }
@@ -515,9 +548,13 @@
 
     /* ---------- load ---------- */
 
+    function creds() {
+      return cfg.apikey ? { apikey: cfg.apikey } : currentAuth();
+    }
+
     function load(opts) {
-      const creds = currentAuth();
-      if (!creds) {
+      const auth = creds();
+      if (!auth) {
         quotes = null;
         renderLogin();
         return Promise.resolve();
@@ -529,7 +566,7 @@
         el.querySelector(".sgf-table-wrap").innerHTML = `<p class="sgf-status">Loading quotes…</p>`;
       }
 
-      inFlight = fetchQuotes(cfg.symbols.length ? cfg.symbols : ["ZCZ26"], creds)
+      inFlight = fetchQuotes(cfg.symbols.length ? cfg.symbols : ["ZCZ26"], auth, cfg.feed)
         .then(res => {
           quotes = res.quotes;
           lastUpdated = new Date();
@@ -537,9 +574,9 @@
           el.dispatchEvent(new CustomEvent("sg:updated", { detail: { updated: lastUpdated } }));
         })
         .catch(err => {
-          if (err instanceof AuthError) {
+          if (err instanceof AuthError && !cfg.apikey) {
             loginMessage = err.message;
-            clearAuth(); // re-renders every futures widget to the sign-in form
+            clearAuth(); // returns every futures widget to the key form
           } else if (quotes) {
             const upd = el.querySelector(".sgf-updated");
             if (upd) { upd.textContent = "Refresh failed · " + upd.textContent.replace(/^Refresh failed · /, ""); upd.classList.add("sgf-stale"); }
@@ -555,6 +592,7 @@
     }
 
     function onAuthChange() {
+      if (cfg.apikey) return; // built-in key: shared key changes don't apply
       if (currentAuth()) {
         loginMessage = "";
         if (!el.querySelector(".sgf-table-wrap")) load();
@@ -614,7 +652,9 @@
         ? Math.max(0, Number(pick("refresh")) || 0)
         : 30,
       format: pick("format") === "fraction" ? "fraction" : "decimal",
-      showName: toBool(pick("showName"), true)
+      showName: toBool(pick("showName"), true),
+      apikey: pick("apikey") || "",
+      feed: pick("feed") || ""
     };
 
     el.classList.add("sgt", "sgf-ticker", "sgt-theme-" + cfg.theme);
@@ -644,20 +684,21 @@
       hasData = false;
       track.innerHTML = `
         <span class="sgt-item sgf-ticker-signin">
-          ${message ? `<span class="sgf-login-error">${escapeHtml(message)}</span>` : `<span class="sgt-muted">Sign in to see futures</span>`}
-          <button type="button" class="sgf-btn sgf-btn-primary sgf-ticker-open">Sign in</button>
+          ${message ? `<span class="sgf-login-error">${escapeHtml(message)}</span>` : `<span class="sgt-muted">Add your API key to see futures</span>`}
+          ${cfg.apikey ? "" : `<button type="button" class="sgf-btn sgf-btn-primary sgf-ticker-open">Enter API key</button>`}
         </span>`;
-      track.querySelector(".sgf-ticker-open").addEventListener("click", () => {
+      const open = track.querySelector(".sgf-ticker-open");
+      if (open) open.addEventListener("click", () => {
         track.innerHTML = `<span class="sgt-item sgf-ticker-form">${loginFormHtml(true, "")}</span>`;
         const form = track.querySelector("form");
-        form.elements.username.focus();
-        wireLogin(form, cfg.symbols, msg => showSignIn(msg));
+        form.elements.apikey.focus();
+        wireLogin(form, cfg.symbols, cfg.feed, msg => showSignIn(msg));
       });
     }
 
     function render(quotes) {
       const items = cfg.symbols.map(sym => {
-        const q = quotes[sym];
+        const q = findQuote(quotes, sym);
         if (!q) return "";
         const fmt = makeFormatter(q, cfg.format);
         const last = lastPrice(q);
@@ -667,10 +708,10 @@
         const flash = before !== undefined && before !== null && last !== null && before !== last
           ? (last > before ? " sgt-flash-up" : " sgt-flash-down") : "";
         prevLast.set(sym, last);
-        const month = parseSymbol(q.longsymbol || q.symbol).label;
+        const month = parseSymbol(q.symbol).label;
 
         return `
-          <span class="sgt-item${flash}" title="${escapeHtml(String(q.longsymbol || sym))}">
+          <span class="sgt-item${flash}" title="${escapeHtml(q.symbol || sym)}">
             <span class="sgt-sym">${cfg.showName && q.name ? escapeHtml(q.name) + " " : ""}${escapeHtml(month || sym)}</span>
             <span class="sgt-px">${fmt(last)}</span>
             ${ch.change !== null
@@ -699,20 +740,24 @@
       track.classList.add("sgt-moving");
     }
 
+    function creds() {
+      return cfg.apikey ? { apikey: cfg.apikey } : currentAuth();
+    }
+
     function load() {
-      const creds = currentAuth();
-      if (!creds) {
+      const auth = creds();
+      if (!auth) {
         showSignIn("");
         return Promise.resolve();
       }
-      return fetchQuotes(cfg.symbols, creds)
+      return fetchQuotes(cfg.symbols, auth, cfg.feed)
         .then(res => {
           render(res.quotes);
           el.dispatchEvent(new CustomEvent("sg:updated", { detail: { updated: new Date() } }));
         })
         .catch(err => {
           if (err instanceof AuthError) {
-            clearAuth();
+            if (!cfg.apikey) clearAuth();
             showSignIn(err.message);
           } else if (!hasData) {
             track.innerHTML = `<span class="sgt-item sgt-muted">${escapeHtml(err.message)}</span>`;
@@ -737,13 +782,14 @@
     if (resizeObserver) resizeObserver.observe(viewport);
 
     function onAuthChange() {
+      if (cfg.apikey) return;
       if (currentAuth()) load();
       else showSignIn("");
     }
     window.addEventListener(AUTH_EVENT, onAuthChange);
 
     load();
-    if (cfg.refresh > 0) timer = setInterval(() => { if (currentAuth()) load(); }, cfg.refresh * 1000);
+    if (cfg.refresh > 0) timer = setInterval(() => { if (creds()) load(); }, cfg.refresh * 1000);
 
     function destroy() {
       clearInterval(timer);
@@ -766,6 +812,7 @@
   window.SGFutures = {
     mount,
     mountTicker,
+    setApiKey: (key, remember) => setAuth({ apikey: String(key || "").trim() }, !!remember),
     signOut: clearAuth,
     isSignedIn: () => !!currentAuth(),
     frontMonths,
