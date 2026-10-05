@@ -1,0 +1,424 @@
+/* ============================================================
+   FUTURES QUOTES — table widget + sign-in form
+   (The futures ticker uses sg-ticker.css.)
+   Override any --sgf-* variable to match your site.
+   ============================================================ */
+
+.sgf {
+  --sgf-bg: #ffffff;
+  --sgf-bg-2: #f5f7fa;
+  --sgf-head: #eef2f7;
+  --sgf-text: #111827;
+  --sgf-muted: #5b6675;
+  --sgf-line: #e2e7ee;
+  --sgf-accent: #2563eb;
+  --sgf-accent-ink: #ffffff;
+  --sgf-up: #0a7a0a;
+  --sgf-down: #c62828;
+  --sgf-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--sgf-bg);
+  color: var(--sgf-text);
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 14px;
+  border: 1px solid var(--sgf-line);
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.sgf *,
+.sgf *::before,
+.sgf *::after {
+  box-sizing: border-box;
+}
+
+.sgf-theme-dark {
+  --sgf-bg: #121821;
+  --sgf-bg-2: #171f2a;
+  --sgf-head: #1b2430;
+  --sgf-text: #e6edf3;
+  --sgf-muted: #8b98a9;
+  --sgf-line: #263142;
+  --sgf-accent: #f5b301;
+  --sgf-accent-ink: #1a1300;
+  --sgf-up: #22c55e;
+  --sgf-down: #f05252;
+}
+
+.sgf-theme-none {
+  --sgf-bg: transparent;
+  --sgf-bg-2: rgba(127, 127, 127, .08);
+  --sgf-head: rgba(127, 127, 127, .12);
+  --sgf-text: inherit;
+  --sgf-muted: currentColor;
+  --sgf-line: rgba(127, 127, 127, .25);
+}
+
+/* ---------- top bar ---------- */
+
+.sgf-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--sgf-line);
+}
+
+.sgf-updated {
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--sgf-muted);
+}
+
+.sgf-stale {
+  color: var(--sgf-down);
+}
+
+.sgf-btn {
+  font: inherit;
+  font-size: 13px;
+  color: var(--sgf-text);
+  background: var(--sgf-bg-2);
+  border: 1px solid var(--sgf-line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.sgf-btn:hover,
+.sgf-btn:focus-visible {
+  border-color: var(--sgf-accent);
+  outline: none;
+}
+
+.sgf-btn-primary {
+  background: var(--sgf-accent);
+  border-color: var(--sgf-accent);
+  color: var(--sgf-accent-ink);
+  font-weight: 700;
+}
+
+.sgf-btn[disabled] {
+  opacity: .6;
+  cursor: progress;
+}
+
+.sgf-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--sgf-muted);
+}
+
+/* ---------- settings menu ---------- */
+
+.sgf-menu {
+  position: relative;
+}
+
+.sgf-menu summary {
+  list-style: none;
+}
+
+.sgf-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.sgf-menu[open] summary {
+  color: var(--sgf-text);
+  border-color: var(--sgf-accent);
+}
+
+.sgf-menu-body {
+  position: absolute;
+  right: 0;
+  top: 36px;
+  z-index: 40;
+  min-width: 220px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 8px 14px 12px;
+  background: var(--sgf-bg);
+  border: 1px solid var(--sgf-line);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+}
+
+.sgf-theme-none .sgf-menu-body {
+  background: #fff;
+  color: #111827;
+}
+
+.sgf-menu-title {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--sgf-muted);
+}
+
+.sgf-menu-body label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.sgf-signout {
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* ---------- table ---------- */
+
+.sgf-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.sgf table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.sgf th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 7px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--sgf-muted);
+  background: var(--sgf-head);
+  border-bottom: 1px solid var(--sgf-line);
+  white-space: nowrap;
+}
+
+.sgf td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--sgf-line);
+  white-space: nowrap;
+}
+
+.sgf tbody tr:nth-child(even) {
+  background: var(--sgf-bg-2);
+}
+
+.sgf .sgf-num {
+  text-align: right;
+  font-family: var(--sgf-mono);
+}
+
+.sgf th.sgf-num {
+  font-family: inherit;
+}
+
+.sgf-col-name {
+  font-weight: 600;
+}
+
+.sgf-col-symbol {
+  font-family: var(--sgf-mono);
+  color: var(--sgf-muted);
+}
+
+.sgf-last {
+  font-weight: 700;
+  padding: 1px 4px;
+  margin: -1px -4px;
+  border-radius: 3px;
+}
+
+.sgf-up { color: var(--sgf-up); }
+.sgf-down { color: var(--sgf-down); }
+.sgf-flat { color: var(--sgf-muted); }
+
+.sgf-arrow {
+  font-size: 10px;
+}
+
+.sgf-missing td {
+  color: var(--sgf-muted);
+  font-style: italic;
+}
+
+@keyframes sgf-flash-up {
+  from { background-color: rgba(34, 197, 94, .35); }
+  to   { background-color: transparent; }
+}
+
+@keyframes sgf-flash-down {
+  from { background-color: rgba(240, 82, 82, .35); }
+  to   { background-color: transparent; }
+}
+
+.sgf-flash-up { animation: sgf-flash-up 2s ease-out; }
+.sgf-flash-down { animation: sgf-flash-down 2s ease-out; }
+
+.sgf-status {
+  margin: 0;
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--sgf-muted);
+}
+
+.sgf-error {
+  color: var(--sgf-down);
+}
+
+/* ---------- sign-in ---------- */
+
+.sgf-login-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.sgf-login {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.sgf-login-title {
+  margin-bottom: 6px;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.sgf-login label {
+  font-size: 12px;
+  color: var(--sgf-muted);
+}
+
+.sgf-login input[type="text"],
+.sgf-login input[type="password"] {
+  font: inherit;
+  font-size: 14px;
+  color: var(--sgf-text);
+  background: var(--sgf-bg-2);
+  border: 1px solid var(--sgf-line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+}
+
+.sgf-login input:focus-visible {
+  outline: none;
+  border-color: var(--sgf-accent);
+}
+
+.sgf-login .sgf-remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 8px;
+  color: var(--sgf-text);
+}
+
+.sgf-login-error {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--sgf-down);
+  background: color-mix(in srgb, var(--sgf-down) 12%, transparent);
+}
+
+.sgf-login-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--sgf-muted);
+}
+
+.sgf-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- futures ticker sign-in (inside sg-ticker styling) ---------- */
+
+.sgf-ticker .sgf-btn {
+  --sgf-accent: var(--sgt-accent);
+  --sgf-accent-ink: var(--sgt-label-text);
+  --sgf-line: var(--sgt-line);
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.sgf-ticker .sgf-btn-primary {
+  background: var(--sgt-label-bg);
+  border-color: var(--sgt-label-bg);
+  color: var(--sgt-label-text);
+}
+
+.sgf-ticker-signin {
+  gap: 12px;
+}
+
+.sgf-ticker .sgf-login-error {
+  padding: 3px 8px;
+  color: var(--sgt-down);
+  background: transparent;
+}
+
+.sgf-ticker-form {
+  padding: 0 12px;
+}
+
+.sgf-login-compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  max-width: none;
+}
+
+.sgf-login-compact input[type="text"],
+.sgf-login-compact input[type="password"] {
+  width: 130px;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--sgt-text);
+  background: transparent;
+  border: 1px solid var(--sgt-line);
+  border-radius: 4px;
+}
+
+.sgf-login-compact input:focus-visible {
+  border-color: var(--sgt-accent);
+  outline: none;
+}
+
+.sgf-login-compact .sgf-remember {
+  margin: 0;
+  font-size: 11px;
+  color: var(--sgt-muted);
+  white-space: nowrap;
+}
+
+/* The sign-in form should never scroll away */
+.sgf-ticker .sgt-track:has(.sgf-ticker-form),
+.sgf-ticker .sgt-track:has(.sgf-ticker-signin) {
+  animation: none;
+}

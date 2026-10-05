@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Futures Quotes</title>
+
+  <link rel="stylesheet" href="sg-ticker.css">
+  <link rel="stylesheet" href="sg-futures.css">
+
+  <style>
+    :root {
+      --page-bg: #f4f6f9;
+      --page-text: #1f2937;
+      --page-muted: #5b6675;
+      --code-bg: #0f141b;
+      --code-text: #e6edf3;
+      --card-bg: #ffffff;
+      --card-line: #dde3ea;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page-bg: #0b0f14;
+        --page-text: #e6edf3;
+        --page-muted: #8b98a9;
+        --code-bg: #121821;
+        --code-text: #e6edf3;
+        --card-bg: #121821;
+        --card-line: #263142;
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--page-bg);
+      color: var(--page-text);
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 16px 64px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 26px;
+    }
+
+    .lede {
+      margin: 0 0 32px;
+      color: var(--page-muted);
+    }
+
+    section {
+      margin-bottom: 40px;
+    }
+
+    h2 {
+      font-size: 17px;
+      margin: 0 0 4px;
+    }
+
+    section > p {
+      margin: 0 0 12px;
+      color: var(--page-muted);
+      font-size: 14px;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--card-line);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--page-muted);
+    }
+
+    code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .note {
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--card-line);
+      background: var(--card-bg);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+<main>
+
+  <h1>Futures Quotes</h1>
+  <p class="lede">Futures quotes from Barchart OpenFeed, as a table or a scrolling ticker. Viewers sign in with their Barchart username and password inside the widget.</p>
+
+  <p class="note">Sign-in details are never part of the embed code. They stay in the viewer's browser for the session, or until they sign out if "Remember me" is checked. One sign-in covers every futures table and ticker on the page.</p>
+
+  <section>
+    <h2>Ticker</h2>
+    <p>Month, last price and change for each contract.</p>
+    <div data-sg-futures-ticker
+         data-symbols="ZCZ26,ZCH27,ZSX26,ZSF27,ZWZ26,ZWH27"></div>
+<pre><code>&lt;div data-sg-futures-ticker
+     data-symbols="ZCZ26,ZCH27,ZSX26,ZSF27,ZWZ26,ZWH27"&gt;&lt;/div&gt;
+
+&lt;script src="https://cgermain45.github.io/cashbid-widget/sg-futures.js"&gt;&lt;/script&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>Table</h2>
+    <p>Name, symbol, month, last and change by default. Use the ⚙ menu to show open, high, low, close, % change or volume, or to switch to fractional prices (497'2).</p>
+    <div data-sg-futures
+         data-symbols="ZCZ26,ZCH27,ZSX26,ZSF27,ZWZ26,ZWH27"></div>
+<pre><code>&lt;div data-sg-futures
+     data-symbols="ZCZ26,ZCH27,ZSX26,ZSF27,ZWZ26,ZWH27"
+     data-columns="name,symbol,month,last,change"&gt;&lt;/div&gt;
+
+&lt;script src="https://cgermain45.github.io/cashbid-widget/sg-futures.js"&gt;&lt;/script&gt;</code></pre>
+    <p style="margin-top:12px">The script loads its stylesheets from the same folder automatically.</p>
+  </section>
+
+  <section>
+    <h2>Options</h2>
+    <table>
+      <thead>
+        <tr><th>Attribute</th><th>Default</th><th>What it does</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>data-symbols</code></td><td>required</td><td>Comma-separated contracts. The month comes from the symbol: <code>ZCZ26</code> = Dec 26.</td></tr>
+        <tr><td><code>data-columns</code></td><td><code>name,symbol,month,last,change</code></td><td>Table only. Also available: <code>pctchange</code>, <code>open</code>, <code>high</code>, <code>low</code>, <code>close</code>, <code>volume</code>.</td></tr>
+        <tr><td><code>data-format</code></td><td><code>decimal</code></td><td><code>decimal</code> (497.25) or <code>fraction</code> (497'2, grain eighths)</td></tr>
+        <tr><td><code>data-theme</code></td><td>table <code>light</code>, ticker <code>dark</code></td><td><code>light</code>, <code>dark</code>, or <code>none</code> (inherit your site's colors)</td></tr>
+        <tr><td><code>data-refresh</code></td><td><code>30</code></td><td>Seconds between refreshes (0 turns it off)</td></tr>
+        <tr><td><code>data-label</code></td><td><code>Futures</code></td><td>Ticker only. Badge text, or <code>""</code> to hide it.</td></tr>
+        <tr><td><code>data-speed</code></td><td><code>50</code></td><td>Ticker only. Scroll speed in pixels per second.</td></tr>
+        <tr><td><code>data-show-name</code></td><td><code>true</code></td><td>Ticker only. Show the commodity name before the month (e.g. "Corn Dec 26").</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:12px"><strong>Change</strong> is last minus the previous close. <strong>Close</strong> is today's settlement once it's posted, otherwise the previous close. Last prices flash green or red when they move between refreshes.</p>
+  </section>
+
+</main>
+
+<script src="sg-futures.js"></script>
+</body>
+</html>
