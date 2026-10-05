@@ -15,6 +15,16 @@
     "https://stonegrain.agricharts.com/inc/cashbids/cashbids-json.php";
 
   const LAYOUT_KEY = "sg-qb-layout";
+  const DEFAULT_TITLE = "Cash Bid Quoteboard";
+
+  const THEMES = [
+    { id: "floor", name: "Trading Floor", desc: "Slate and amber, monospace numbers",
+      swatch: ["#0b0f14", "#1b2430", "#f5b301"] },
+    { id: "modern", name: "Modern", desc: "Clean blue, rounded panels",
+      swatch: ["#f1f5f9", "#ffffff", "#2563eb"] },
+    { id: "harvest", name: "Harvest", desc: "Field green and wheat gold",
+      swatch: ["#142019", "#d9a930", "#2f6b3a"] }
+  ];
   const PREFS_KEY = "sg-qb-prefs";
   const PANEL_PREFIX = id => `sg-qb:${id}:`;
 
@@ -72,7 +82,18 @@
   });
 
   const prefs = Object.assign(
-    { theme: "dark", refreshMin: 5, locked: false, ticker: true, futuresTicker: false, fit: true },
+    {
+      theme: "dark",          // mode: dark | light
+      style: "floor",         // theme: floor | modern | harvest
+      accent: "",             // custom company colors ("" = theme default)
+      barColor: "",
+      title: DEFAULT_TITLE,
+      refreshMin: 5,
+      locked: false,
+      ticker: true,
+      futuresTicker: false,
+      fit: true
+    },
     readJSON(PREFS_KEY, {})
   );
 
@@ -130,7 +151,7 @@
     <header class="qb-topbar">
       <div class="qb-brand">
         <span class="qb-logo" aria-hidden="true"></span>
-        <span class="qb-brand-name">Cash Bid Quoteboard</span>
+        <span class="qb-brand-name" title="Double-click to rename"></span>
       </div>
 
       <div class="qb-clock" aria-label="Current time">
@@ -161,20 +182,58 @@
           <span class="qb-fit-icon" aria-hidden="true">⤢</span> <span class="qb-btn-label">Fit to screen</span>
         </button>
         <span class="qb-overfull-note" hidden title="There are more panels than fit at full size, so everything is scaled down. Make some panels smaller or turn off Fit to screen.">Scaled to fit</span>
-        <button type="button" class="qb-btn qb-toggle-lock" aria-pressed="false" title="Lock layout">
-          <span class="qb-lock-icon">🔓</span> <span class="qb-btn-label">Unlocked</span>
-        </button>
-        <button type="button" class="qb-btn qb-toggle-theme" title="Switch light/dark" aria-label="Switch light/dark theme">
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-            <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M8 1.5a6.5 6.5 0 0 1 0 13Z" fill="currentColor"/>
-          </svg>
-        </button>
+        <div class="qb-appearance">
+          <button type="button" class="qb-btn qb-appearance-btn" aria-expanded="false" aria-haspopup="true"
+                  title="Theme and colors">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <path fill="currentColor" d="M8 1a7 7 0 0 0 0 14c.9 0 1.5-.6 1.5-1.4 0-.4-.1-.7-.4-1-.2-.3-.4-.6-.4-1 0-.8.6-1.4 1.4-1.4H11.6A3.4 3.4 0 0 0 15 6.8C15 3.6 11.9 1 8 1Zm-4 7.2a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Zm2-3.4a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Zm4 0a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Zm2.4 2.5a1.1 1.1 0 1 1 0-2.2 1.1 1.1 0 0 1 0 2.2Z"/>
+            </svg>
+            <span class="qb-btn-label">Appearance</span>
+          </button>
+          <div class="qb-appearance-panel" hidden role="dialog" aria-label="Appearance">
+            <div>
+              <p class="qb-ap-title">Theme</p>
+              <div class="qb-theme-cards">
+                ${THEMES.map(t => `
+                  <label class="qb-theme-card">
+                    <input type="radio" name="qb-style" value="${t.id}">
+                    <span class="qb-theme-swatch" aria-hidden="true">${t.swatch.map(c => `<span style="background:${c}"></span>`).join("")}</span>
+                    <span><span class="qb-theme-name">${t.name}</span><span class="qb-theme-desc">${t.desc}</span></span>
+                  </label>`).join("")}
+              </div>
+            </div>
+            <div>
+              <p class="qb-ap-title">Mode</p>
+              <div class="qb-segmented">
+                <label><input type="radio" name="qb-mode" value="dark"> Dark</label>
+                <label><input type="radio" name="qb-mode" value="light"> Light</label>
+              </div>
+            </div>
+            <div>
+              <p class="qb-ap-title">Company colors</p>
+              <label class="qb-color-row">
+                <span>Accent</span>
+                <button type="button" class="qb-color-default" data-for="accent">Default</button>
+                <input type="color" name="accent" aria-label="Accent color">
+              </label>
+              <label class="qb-color-row">
+                <span>Top bar</span>
+                <button type="button" class="qb-color-default" data-for="barColor">Default</button>
+                <input type="color" name="barColor" aria-label="Top bar color">
+              </label>
+              <p class="qb-ap-note">Accent colors buttons, badges and highlights. Up/down prices stay green and red.</p>
+            </div>
+          </div>
+        </div>
         <button type="button" class="qb-btn qb-reset" title="Reset to the default layout">
           Reset
         </button>
         <button type="button" class="qb-btn qb-btn-primary qb-add">
           + <span class="qb-btn-label">Add Panel</span>
+        </button>
+        <button type="button" class="qb-btn qb-toggle-lock" aria-pressed="false"
+                title="Lock the layout and hide the toolbar">
+          <span class="qb-lock-icon">🔓</span> <span class="qb-btn-label">Lock</span>
         </button>
       </div>
     </header>
@@ -439,7 +498,7 @@
     }
     if (!panel) return;
 
-    if (e.target.closest(".qb-panel-close")) {
+    if (e.target.closest(".qb-panel-close") && !prefs.locked) {
       const p = panelById(panel.dataset.id);
       if (confirm(`Remove "${p ? p.title : "this panel"}"?`)) {
         removePanel(panel.dataset.id);
@@ -451,6 +510,7 @@
   });
 
   board.addEventListener("dblclick", e => {
+    if (prefs.locked) return;
     const title = e.target.closest(".qb-panel-title");
     if (title) startRename(title);
   });
@@ -882,8 +942,12 @@
   const futuresTickerBtn = root.querySelector(".qb-toggle-futures-ticker");
 
   function applyPrefs() {
-    document.documentElement.dataset.theme = prefs.theme;
+    const html = document.documentElement;
+    html.dataset.theme = prefs.theme;
+    html.dataset.qbStyle = THEMES.some(t => t.id === prefs.style) ? prefs.style : "floor";
     root.dataset.theme = prefs.theme;
+    applyColors();
+    applyTitle();
 
     intervalSelect.value = String(prefs.refreshMin);
 
@@ -892,7 +956,11 @@
     fitBtn.querySelector(".qb-btn-label").textContent = prefs.fit ? "Fit to screen" : "Scrolling";
     lockBtn.setAttribute("aria-pressed", String(prefs.locked));
     lockBtn.querySelector(".qb-lock-icon").textContent = prefs.locked ? "🔒" : "🔓";
-    lockBtn.querySelector(".qb-btn-label").textContent = prefs.locked ? "Locked" : "Unlocked";
+    lockBtn.querySelector(".qb-btn-label").textContent = prefs.locked ? "Locked" : "Lock";
+    lockBtn.title = prefs.locked
+      ? "Locked — click to unlock the layout and show the toolbar"
+      : "Lock the layout and hide the toolbar";
+    if (prefs.locked) closeAppearance();
 
     tickerEl.hidden = !prefs.ticker || !window.SGTicker;
     tickerBtn.setAttribute("aria-pressed", String(prefs.ticker));
@@ -952,11 +1020,6 @@
     loadFuturesTicker();
   });
 
-  root.querySelector(".qb-toggle-theme").addEventListener("click", () => {
-    prefs.theme = prefs.theme === "dark" ? "light" : "dark";
-    savePrefs();
-    applyPrefs();
-  });
 
   root.querySelector(".qb-reset").addEventListener("click", () => {
     if (!confirm("Reset the board to the default layout? Panel settings will be cleared.")) return;
@@ -1073,6 +1136,169 @@
       span: Number(data.get("span")) || 6,
       groupBy: data.get("groupBy") === "commodity" ? "commodity" : "location"
     });
+  });
+
+  /* ============================================================
+     APPEARANCE — theme, mode and company colors
+     ============================================================ */
+
+  const appearanceBtn = root.querySelector(".qb-appearance-btn");
+  const appearancePanel = root.querySelector(".qb-appearance-panel");
+
+  function hexToRgb(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || "").trim());
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  // WCAG relative luminance → pick readable text for a background
+  function inkFor(hex) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return null;
+    const [r, g, b] = rgb.map(v => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return L > 0.36 ? "#111827" : "#ffffff";
+  }
+
+  function applyColors() {
+    const st = document.documentElement.style;
+    const accent = hexToRgb(prefs.accent) ? prefs.accent : "";
+    const bar = hexToRgb(prefs.barColor) ? prefs.barColor : "";
+
+    if (accent) {
+      st.setProperty("--qb-accent", accent);
+      st.setProperty("--qb-accent-ink", inkFor(accent));
+    } else {
+      st.removeProperty("--qb-accent");
+      st.removeProperty("--qb-accent-ink");
+    }
+
+    if (bar) {
+      const ink = inkFor(bar);
+      st.setProperty("--qb-bar-bg", bar);
+      st.setProperty("--qb-bar-text", ink);
+      st.setProperty("--qb-bar-muted", ink === "#ffffff" ? "rgba(255,255,255,.72)" : "rgba(17,24,39,.68)");
+    } else {
+      ["--qb-bar-bg", "--qb-bar-text", "--qb-bar-muted"].forEach(v => st.removeProperty(v));
+    }
+  }
+
+  function toHex(color) {
+    // getComputedStyle gives "#rrggbb" for our tokens; normalise rgb() just in case
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(color);
+    if (m) return "#" + [m[1], m[2], m[3]].map(v => Number(v).toString(16).padStart(2, "0")).join("");
+    return /^#[0-9a-f]{6}$/i.test(color.trim()) ? color.trim() : "#000000";
+  }
+
+  function syncAppearanceForm() {
+    appearancePanel.querySelectorAll('input[name="qb-style"]').forEach(r => { r.checked = r.value === document.documentElement.dataset.qbStyle; });
+    appearancePanel.querySelectorAll('input[name="qb-mode"]').forEach(r => { r.checked = r.value === prefs.theme; });
+
+    const cs = getComputedStyle(document.documentElement);
+    const topbar = root.querySelector(".qb-topbar");
+    appearancePanel.querySelector('input[name="accent"]').value = toHex(cs.getPropertyValue("--qb-accent"));
+    appearancePanel.querySelector('input[name="barColor"]').value = toHex(getComputedStyle(topbar).backgroundColor);
+    appearancePanel.querySelectorAll(".qb-color-default").forEach(b => { b.hidden = !prefs[b.dataset.for]; });
+  }
+
+  function openAppearance() {
+    syncAppearanceForm();
+    appearancePanel.hidden = false;
+    appearanceBtn.setAttribute("aria-expanded", "true");
+  }
+
+  function closeAppearance() {
+    appearancePanel.hidden = true;
+    appearanceBtn.setAttribute("aria-expanded", "false");
+  }
+
+  appearanceBtn.addEventListener("click", () => {
+    if (appearancePanel.hidden) openAppearance(); else closeAppearance();
+  });
+
+  document.addEventListener("click", e => {
+    if (!appearancePanel.hidden && !e.composedPath().includes(root.querySelector(".qb-appearance"))) closeAppearance();
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && !appearancePanel.hidden) {
+      closeAppearance();
+      appearanceBtn.focus();
+    }
+  });
+
+  appearancePanel.addEventListener("change", e => {
+    const t = e.target;
+    if (t.name === "qb-style") prefs.style = t.value;
+    else if (t.name === "qb-mode") prefs.theme = t.value;
+    else return;
+    savePrefs();
+    applyPrefs();
+    syncAppearanceForm(); // color pickers show the new theme's defaults
+  });
+
+  // Live preview while dragging the color picker; save on change
+  appearancePanel.addEventListener("input", e => {
+    const t = e.target;
+    if (t.type !== "color") return;
+    prefs[t.name] = t.value;
+    applyColors();
+    appearancePanel.querySelector(`.qb-color-default[data-for="${t.name}"]`).hidden = false;
+  });
+
+  appearancePanel.addEventListener("change", e => {
+    if (e.target.type === "color") savePrefs();
+  });
+
+  appearancePanel.querySelectorAll(".qb-color-default").forEach(btn => btn.addEventListener("click", e => {
+    e.preventDefault(); // the button sits inside a <label>
+    prefs[btn.dataset.for] = "";
+    savePrefs();
+    applyColors();
+    syncAppearanceForm();
+  }));
+
+  /* ============================================================
+     BOARD TITLE — double-click to rename
+     ============================================================ */
+
+  const brandName = root.querySelector(".qb-brand-name");
+
+  function applyTitle() {
+    const title = (prefs.title || "").trim() || DEFAULT_TITLE;
+    if (brandName.contentEditable !== "true") brandName.textContent = title;
+    document.title = title;
+  }
+
+  brandName.addEventListener("dblclick", () => {
+    if (prefs.locked) return;
+    const original = prefs.title || DEFAULT_TITLE;
+
+    brandName.contentEditable = "true";
+    brandName.focus();
+    document.getSelection().selectAllChildren(brandName);
+
+    function finish(save) {
+      brandName.contentEditable = "false";
+      brandName.removeEventListener("keydown", onKey);
+      brandName.removeEventListener("blur", onBlur);
+      const value = brandName.textContent.replace(/\s+/g, " ").trim().slice(0, 80);
+      prefs.title = save ? (value || DEFAULT_TITLE) : original;
+      savePrefs();
+      applyTitle();
+    }
+    function onKey(e) {
+      if (e.key === "Enter") { e.preventDefault(); finish(true); }
+      if (e.key === "Escape") { e.preventDefault(); finish(false); }
+    }
+    function onBlur() { finish(true); }
+
+    brandName.addEventListener("keydown", onKey);
+    brandName.addEventListener("blur", onBlur);
   });
 
   /* ============================================================
