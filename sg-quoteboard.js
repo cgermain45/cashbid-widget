@@ -56,7 +56,7 @@
   if (!Array.isArray(layout)) layout = defaultLayout();
 
   const prefs = Object.assign(
-    { theme: "dark", refreshMin: 5, locked: false, ticker: true },
+    { theme: "dark", refreshMin: 5, locked: false, ticker: true, futuresTicker: false },
     readJSON(PREFS_KEY, {})
   );
 
@@ -133,9 +133,13 @@
         <button type="button" class="qb-btn qb-refresh-all" title="Refresh all panels">
           ⟳ <span class="qb-btn-label">Refresh</span>
         </button>
-        <button type="button" class="qb-btn qb-toggle-ticker" aria-pressed="false" title="Show or hide the ticker">
-          Ticker
+        <button type="button" class="qb-btn qb-toggle-ticker" aria-pressed="false" title="Show or hide the cash bid ticker">
+          Cash Ticker
         </button>
+        ${window.SGFutures ? `
+        <button type="button" class="qb-btn qb-toggle-futures-ticker" aria-pressed="false" title="Show or hide the futures ticker">
+          Futures Ticker
+        </button>` : ""}
         <button type="button" class="qb-btn qb-toggle-lock" aria-pressed="false" title="Lock layout">
           <span class="qb-lock-icon">🔓</span> <span class="qb-btn-label">Unlocked</span>
         </button>
@@ -155,6 +159,7 @@
     </header>
 
     <div class="qb-ticker"></div>
+    <div class="qb-ticker qb-ticker-futures" hidden></div>
 
     <main class="qb-board" aria-label="Quoteboard panels"></main>
 
@@ -247,7 +252,8 @@
   `;
 
   const board = root.querySelector(".qb-board");
-  const tickerEl = root.querySelector(".qb-ticker");
+  const tickerEl = root.querySelector(".qb-ticker:not(.qb-ticker-futures)");
+  const futuresTickerEl = root.querySelector(".qb-ticker-futures");
   const dialog = root.querySelector(".qb-dialog");
 
   /* ============================================================
@@ -362,6 +368,7 @@
     board.appendChild(el);
     updateEmptyState();
     loadTicker(true);
+    loadFuturesTicker();
     el.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
@@ -376,6 +383,7 @@
     if (el) el.remove();
     updateEmptyState();
     loadTicker(true);
+    loadFuturesTicker();
   }
 
   function updateEmptyState() {
@@ -606,12 +614,60 @@
   }
 
   /* ============================================================
+     FUTURES TICKER
+     sg-futures.js ticker showing every contract from the board's
+     futures panels (or the front corn/soy/wheat months if there are
+     none). It refreshes itself every 30 seconds and shares the
+     futures API key with the panels.
+     ============================================================ */
+
+  let futuresTicker = null;
+  let futuresTickerKey = null;
+
+  function futuresTickerSymbols() {
+    const seen = new Set();
+    layout.filter(p => panelType(p) === "futures")
+      .forEach(p => (p.symbols || []).forEach(sym => seen.add(String(sym).toUpperCase())));
+    return seen.size ? [...seen] : defaultFuturesSymbols().split(/[\s,]+/).filter(Boolean);
+  }
+
+  function loadFuturesTicker(forceRefresh) {
+    if (!window.SGFutures) return;
+
+    if (!prefs.futuresTicker) {
+      // Stop polling while hidden
+      if (futuresTicker) futuresTicker.destroy();
+      futuresTicker = null;
+      futuresTickerKey = null;
+      return;
+    }
+
+    const symbols = futuresTickerSymbols();
+    const key = symbols.join(",");
+
+    if (futuresTicker && futuresTickerKey === key) {
+      if (forceRefresh) futuresTicker.refresh();
+      return;
+    }
+
+    if (futuresTicker) futuresTicker.destroy();
+    futuresTickerKey = key;
+    futuresTicker = window.SGFutures.mountTicker(futuresTickerEl, {
+      symbols,
+      refresh: 30,
+      apikey: root.dataset.futuresApikey || undefined,
+      feed: root.dataset.futuresFeed || undefined
+    });
+  }
+
+  /* ============================================================
      TOOLBAR
      ============================================================ */
 
   const intervalSelect = root.querySelector(".qb-refresh-interval");
   const lockBtn = root.querySelector(".qb-toggle-lock");
   const tickerBtn = root.querySelector(".qb-toggle-ticker");
+  const futuresTickerBtn = root.querySelector(".qb-toggle-futures-ticker");
 
   function applyPrefs() {
     document.documentElement.dataset.theme = prefs.theme;
@@ -626,12 +682,20 @@
 
     tickerEl.hidden = !prefs.ticker || !window.SGTicker;
     tickerBtn.setAttribute("aria-pressed", String(prefs.ticker));
+
+    futuresTickerEl.hidden = !prefs.futuresTicker || !window.SGFutures;
+    if (futuresTickerBtn) futuresTickerBtn.setAttribute("aria-pressed", String(prefs.futuresTicker));
   }
 
   function refreshAll() {
     // { auto: true } lets weather panels skip refreshes they don't need
     instances.forEach(api => api.refresh({ auto: true }));
     loadTicker();
+  }
+
+  function refreshAllNow() {
+    refreshAll();
+    loadFuturesTicker(true);
   }
 
   function scheduleRefresh() {
@@ -645,7 +709,7 @@
     scheduleRefresh();
   });
 
-  root.querySelector(".qb-refresh-all").addEventListener("click", refreshAll);
+  root.querySelector(".qb-refresh-all").addEventListener("click", refreshAllNow);
 
   lockBtn.addEventListener("click", () => {
     prefs.locked = !prefs.locked;
@@ -658,6 +722,13 @@
     savePrefs();
     applyPrefs();
     if (prefs.ticker) loadTicker();
+  });
+
+  if (futuresTickerBtn) futuresTickerBtn.addEventListener("click", () => {
+    prefs.futuresTicker = !prefs.futuresTicker;
+    savePrefs();
+    applyPrefs();
+    loadFuturesTicker();
   });
 
   root.querySelector(".qb-toggle-theme").addEventListener("click", () => {
@@ -673,6 +744,7 @@
     saveLayout();
     renderBoard();
     loadTicker();
+    loadFuturesTicker();
   });
 
   root.querySelector(".qb-topbar .qb-add").addEventListener("click", openAddDialog);
@@ -812,6 +884,7 @@
   renderBoard();
   saveLayout();
   loadTicker();
+  loadFuturesTicker();
   scheduleRefresh();
   tick();
   setInterval(tick, 1000);

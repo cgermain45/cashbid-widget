@@ -191,6 +191,12 @@ body {
   display: none;
 }
 
+/* Futures ticker: muted badge so the two bars are easy to tell apart */
+.qb-ticker-futures.sgt {
+  --sgt-label-bg: var(--qb-head);
+  --sgt-label-text: var(--qb-accent);
+}
+
 /* ============================================================
    BOARD + PANELS
    ============================================================ */
