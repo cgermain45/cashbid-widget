@@ -5,6 +5,7 @@
      Requires sg-cashbid-widget-dev.js (window.SGCashBid).
      Weather panels need sg-weather.js (window.SGWeather) — optional.
      Futures panels need sg-futures.js (window.SGFutures) — optional.
+     Announcement panels need sg-announce.js (window.SGAnnounce) — optional.
      ============================================================ */
 
   const root = document.getElementById("sg-quoteboard");
@@ -130,13 +131,16 @@
       switch (panelType(p)) {
         case "weather": return Object.assign(base, { lat: p.lat, lon: p.lon, units: p.units });
         case "futures": return Object.assign(base, { symbols: p.symbols, format: p.format });
+        case "announce": return Object.assign(base, {
+          source: p.source || "local", feed: p.feed || "", slides: p.slides || [], interval: p.interval || 10
+        });
         default: return Object.assign(base, { json: p.json });
       }
     }));
   }
 
   function panelType(p) {
-    return p.type === "weather" || p.type === "futures" ? p.type : "cashbids";
+    return ["weather", "futures", "announce"].includes(p.type) ? p.type : "cashbids";
   }
 
   function savePrefs() {
@@ -278,6 +282,7 @@
             <option value="cashbids">Cash Bids</option>
             ${window.SGFutures ? `<option value="futures">Futures quotes (Barchart OnDemand)</option>` : ""}
             ${window.SGWeather ? `<option value="weather">Weather (National Weather Service)</option>` : ""}
+            ${window.SGAnnounce ? `<option value="announce">Announcements / ads</option>` : ""}
           </select>
         </label>
         <label>
@@ -310,6 +315,10 @@
             </select>
           </label>
           <p class="qb-hint">Comma-separated contracts, e.g. ZCZ26 = Corn Dec 26. You'll enter your Barchart OnDemand API key inside the panel.</p>
+        </fieldset>
+
+        <fieldset class="qb-fields" data-type="announce" hidden disabled>
+          <p class="qb-hint">Rotating slides for messages and ads, with optional images. You'll write the slides in the panel, or point it at a hosted JSON file so several screens share the same slides.</p>
         </fieldset>
 
         <fieldset class="qb-fields" data-type="weather" hidden disabled>
@@ -371,6 +380,7 @@
         <span class="qb-panel-time"></span>
         ${panelType(p) === "cashbids" ? `<button type="button" class="qb-icon-btn qb-panel-setup" title="Change feed URL" aria-label="Change cash bid feed URL for ${escapeHtml(p.title)}">🔗</button>` : ""}
         ${panelType(p) === "weather" ? `<button type="button" class="qb-icon-btn qb-panel-setup" title="Change location" aria-label="Change weather location for ${escapeHtml(p.title)}">📍</button>` : ""}
+        ${panelType(p) === "announce" ? `<button type="button" class="qb-icon-btn qb-panel-setup" title="Edit announcements" aria-label="Edit ${escapeHtml(p.title)}">✏️</button>` : ""}
         <button type="button" class="qb-icon-btn qb-panel-refresh" title="Refresh panel" aria-label="Refresh ${escapeHtml(p.title)}">⟳</button>
         <button type="button" class="qb-icon-btn qb-panel-close" title="Remove panel" aria-label="Remove ${escapeHtml(p.title)}">×</button>
       </header>
@@ -436,6 +446,31 @@
         saveLayout();
         loadFuturesTicker();
       });
+    } else if (panelType(p) === "announce") {
+      api = window.SGAnnounce
+        ? window.SGAnnounce.mount(widgetEl, {
+            source: p.source,
+            feed: p.feed,
+            slides: p.slides || [],
+            interval: p.interval,
+            editable: true,
+            theme: "dark",
+            refresh: 5
+          })
+        : null;
+      if (!api) widgetEl.innerHTML = `<p class="qb-missing">Announcements need sg-announce.js on this page.</p>`;
+
+      if (api && !widgetEl.dataset.qbConfigBound) {
+        widgetEl.dataset.qbConfigBound = "1";
+        widgetEl.addEventListener("sg:config", e => {
+          Object.assign(p, e.detail);
+          saveLayout();
+        });
+      }
+      if (api && p.openEditor) {
+        delete p.openEditor;
+        api.edit();
+      }
     } else if (panelType(p) === "weather") {
       api = window.SGWeather
         ? window.SGWeather.mount(widgetEl, {
@@ -688,7 +723,12 @@
       }
     } else if (e.target.closest(".qb-panel-setup") && !prefs.locked) {
       const p = panelById(panel.dataset.id);
-      if (p) renderSetup(p, panel, !needsSetup(p));
+      if (p && panelType(p) === "announce") {
+        const api = instances.get(p.id);
+        if (api && api.edit) api.edit();
+      } else if (p) {
+        renderSetup(p, panel, !needsSetup(p));
+      }
     } else if (e.target.closest(".qb-panel-refresh")) {
       const api = instances.get(panel.dataset.id);
       if (api) api.refresh();
@@ -1241,10 +1281,10 @@
     });
     const title = dialogForm.elements.title;
     if (!title.dataset.touched) {
-      title.value = { weather: "Weather", futures: "Futures" }[type] || "Cash Bids";
+      title.value = { weather: "Weather", futures: "Futures", announce: "Announcements" }[type] || "Cash Bids";
     }
     if (!dialogForm.elements.span.dataset.touched) {
-      dialogForm.elements.span.value = { weather: "4", futures: "6" }[type] || "6";
+      dialogForm.elements.span.value = { weather: "4", futures: "6", announce: "6" }[type] || "6";
     }
   }
 
@@ -1273,6 +1313,20 @@
   dialog.querySelector("form").addEventListener("submit", e => {
     const form = e.target;
     const data = new FormData(form);
+
+    if (data.get("type") === "announce") {
+      addPanel({
+        id: newId(),
+        type: "announce",
+        title: String(data.get("title") || "Announcements").trim(),
+        source: "local",
+        slides: [],
+        interval: 10,
+        span: Number(data.get("span")) || 6,
+        openEditor: true
+      });
+      return;
+    }
 
     if (data.get("type") === "futures") {
       const symbols = String(data.get("symbols") || "")

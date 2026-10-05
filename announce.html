@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Announcements Widget</title>
+
+  <link rel="stylesheet" href="sg-announce.css">
+
+  <style>
+    :root {
+      --page-bg: #f4f6f9;
+      --page-text: #1f2937;
+      --page-muted: #5b6675;
+      --code-bg: #0f141b;
+      --code-text: #e6edf3;
+      --card-bg: #ffffff;
+      --card-line: #dde3ea;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page-bg: #0b0f14;
+        --page-text: #e6edf3;
+        --page-muted: #8b98a9;
+        --code-bg: #121821;
+        --code-text: #e6edf3;
+        --card-bg: #121821;
+        --card-line: #263142;
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--page-bg);
+      color: var(--page-text);
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 16px 64px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 26px;
+    }
+
+    .lede {
+      margin: 0 0 32px;
+      color: var(--page-muted);
+    }
+
+    section {
+      margin-bottom: 40px;
+    }
+
+    h2 {
+      font-size: 17px;
+      margin: 0 0 4px;
+    }
+
+    section > p {
+      margin: 0 0 12px;
+      color: var(--page-muted);
+      font-size: 14px;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--card-line);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--page-muted);
+    }
+
+    code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 760px) {
+      .demo-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+
+  <h1>Announcements Widget</h1>
+  <p class="lede">Rotating slides for messages and ads: a headline, message, optional image and background color. Load slides from a hosted JSON file so every screen shares them, or write them inline.</p>
+
+  <section>
+    <h2>From a hosted file</h2>
+    <p>Edit the JSON file and every page or screen using it updates within a few minutes. This example uses <a href="examples/announcements.json"><code>examples/announcements.json</code></a> from this repo.</p>
+    <div data-sg-announce data-theme="dark" data-feed="examples/announcements.json" style="--sga-height: 340px"></div>
+<pre><code>&lt;div data-sg-announce
+     data-feed="https://yourcompany.com/announcements.json"&gt;&lt;/div&gt;
+
+&lt;script src="https://cgermain45.github.io/cashbid-widget/sg-announce.js"&gt;&lt;/script&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>Inline slides, sidebar size</h2>
+    <p>Slides can also live right in the page. The layout adapts to the box it's in.</p>
+    <div class="demo-grid">
+      <div data-sg-announce data-interval="6">
+        <script type="application/json">
+          { "slides": [
+            { "title": "Board closed Monday", "text": "Markets closed for the holiday.\nWe'll post bids Tuesday at 7am." },
+            { "title": "Text alerts", "text": "Get bid alerts on your phone — sign up at the scale house.", "background": "#1e3a8a" }
+          ] }
+        </script>
+      </div>
+      <div data-sg-announce style="--sga-height: 260px">
+        <script type="application/json">
+          { "slides": [ { "image": "examples/harvest-ad.svg", "imageMode": "fill" } ] }
+        </script>
+      </div>
+    </div>
+<pre><code>&lt;div data-sg-announce data-interval="6"&gt;
+  &lt;script type="application/json"&gt;
+    { "slides": [
+      { "title": "Board closed Monday", "text": "Markets closed for the holiday." },
+      { "title": "Text alerts", "text": "Sign up at the scale house.", "background": "#1e3a8a" }
+    ] }
+  &lt;/script&gt;
+&lt;/div&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>File format</h2>
+<pre><code>{
+  "interval": 8,                       // seconds per slide (optional)
+  "slides": [
+    {
+      "title": "Harvest hours",          // headline (optional)
+      "text": "Open 6am – 10pm",         // message; line breaks are kept (optional)
+      "image": "https://…/ad.jpg",       // image URL (optional)
+      "imageMode": "side",               // "side" = beside the text, "fill" = fill the panel
+      "background": "#14532d"            // background color (optional)
+    }
+  ]
+}</code></pre>
+    <table>
+      <thead>
+        <tr><th>Attribute</th><th>Default</th><th>What it does</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>data-feed</code></td><td>none</td><td>URL of a JSON file in the format above. If it's on another site, that host must allow cross-site access (GitHub Pages does).</td></tr>
+        <tr><td><code>data-interval</code></td><td><code>10</code></td><td>Seconds per slide (the file's <code>interval</code> wins if set)</td></tr>
+        <tr><td><code>data-refresh</code></td><td><code>5</code></td><td>Minutes between re-reading <code>data-feed</code></td></tr>
+        <tr><td><code>data-theme</code></td><td><code>light</code></td><td><code>light</code>, <code>dark</code>, or <code>none</code> (inherit your site's colors)</td></tr>
+        <tr><td><code>--sga-height</code></td><td><code>300px</code></td><td>CSS variable for the widget's height</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:12px">An image with no text in "fill" mode is shown whole (never cropped), which suits ad graphics. Slides pause while the mouse is over them, and the dots let viewers pick a slide. In the quoteboard, use ✏️ on an Announcements panel to write slides or point it at a file.</p>
+  </section>
+
+</main>
+
+<script src="sg-announce.js"></script>
+</body>
+</html>

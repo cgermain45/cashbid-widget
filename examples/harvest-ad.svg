@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" role="img" aria-label="Harvest Storage Special — free drying through October 31">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6c453"/>
+      <stop offset="1" stop-color="#e08a2c"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="600" fill="url(#sky)"/>
+  <circle cx="960" cy="170" r="90" fill="#fff4cf" opacity=".9"/>
+  <path d="M0 420 C 250 360 450 380 700 410 S 1050 450 1200 400 V600 H0Z" fill="#7a5a1f"/>
+  <path d="M0 470 C 300 430 600 440 900 470 S 1150 500 1200 480 V600 H0Z" fill="#5c4214"/>
+  <g fill="#3f2d0c" opacity=".55">
+    <rect x="860" y="250" width="70" height="190"/>
+    <rect x="940" y="230" width="70" height="210"/>
+    <path d="M855 250 L895 215 L935 250Z"/>
+    <path d="M935 230 L975 195 L1015 230Z"/>
+  </g>
+  <text x="70" y="190" font-family="Georgia, serif" font-size="84" font-weight="700" fill="#2b1d05">Harvest Storage</text>
+  <text x="70" y="285" font-family="Georgia, serif" font-size="84" font-weight="700" fill="#2b1d05">Special</text>
+  <text x="74" y="355" font-family="Segoe UI, Arial, sans-serif" font-size="40" fill="#2b1d05">Free drying through October 31</text>
+</svg>
