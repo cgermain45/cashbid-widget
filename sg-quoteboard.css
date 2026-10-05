@@ -1283,3 +1283,84 @@ html[data-theme="light"] .qb-root .sgw .sgw-i-moon {
     flex-wrap: nowrap;
   }
 }
+
+/* ============================================================
+   PANEL SETUP (cash bid feed URL / weather location)
+   ============================================================ */
+
+.qb-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 20px 16px;
+  height: 100%;
+  overflow-y: auto;
+  justify-content: center;
+}
+
+.qb-setup h3 {
+  margin: 0 0 2px;
+  font-family: var(--qb-title-font);
+  font-size: 15px;
+}
+
+.qb-setup label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--qb-muted);
+}
+
+.qb-setup input,
+.qb-setup select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--qb-text);
+  background: var(--qb-panel-2);
+  border: 1px solid var(--qb-line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.qb-setup input:focus-visible,
+.qb-setup select:focus-visible {
+  outline: none;
+  border-color: var(--qb-accent);
+}
+
+.qb-setup .qb-setup-geo {
+  align-self: flex-start;
+}
+
+.qb-setup-msg {
+  margin: 0;
+  font-size: 13px;
+  color: var(--qb-down);
+}
+
+.qb-setup-msg:empty {
+  display: none;
+}
+
+.qb-setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.qb-root.qb-locked .qb-panel-setup {
+  display: none;
+}
+
+/* Cash ticker before a feed is connected */
+.qb-ticker-hint {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--qb-muted);
+  background: var(--qb-panel-2);
+  border-bottom: 1px solid var(--qb-line);
+}

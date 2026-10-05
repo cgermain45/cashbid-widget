@@ -10,9 +10,9 @@
   const root = document.getElementById("sg-quoteboard");
   if (!root || !window.SGCashBid) return;
 
-  const DEFAULT_FEED =
-    root.dataset.json ||
-    "https://stonegrain.agricharts.com/inc/cashbids/cashbids-json.php";
+  // Optional site-wide cash bid feed (data-json on #sg-quoteboard). When
+  // it isn't set, Cash Bids panels ask for a feed URL the first time.
+  const DEFAULT_FEED = (root.dataset.json || "").trim();
 
   const LAYOUT_KEY = "sg-qb-layout";
   const DEFAULT_TITLE = "Cash Bid Quoteboard";
@@ -62,12 +62,53 @@
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignore */ }
   }
 
+  /* Starter board: cash bids by location (left, full height), futures
+     (asks for an API key) and weather (asks for a location). */
   function defaultLayout() {
     return [
-      { id: newId(), title: "Bids by Location", json: DEFAULT_FEED, span: 6, rows: FIT_ROWS, groupBy: "location" },
-      { id: newId(), title: "Bids by Commodity", json: DEFAULT_FEED, span: 6, rows: FIT_ROWS, groupBy: "commodity" }
+      { id: newId(), type: "cashbids", title: "Cash Bids", json: rememberedFeed(),
+        span: 6, rows: FIT_ROWS, groupBy: "location" },
+      { id: newId(), type: "futures", title: "Futures", symbols: defaultSymbolList(),
+        format: "decimal", span: 6, rows: FIT_ROWS / 2 },
+      Object.assign({ id: newId(), type: "weather", title: "Weather", units: "us",
+        span: 6, rows: FIT_ROWS / 2 }, rememberedLocation())
     ];
   }
+
+  function rememberedFeed() {
+    return prefs.cashFeed || DEFAULT_FEED || "";
+  }
+
+  function rememberedLocation() {
+    return isFinite(prefs.weatherLat) && isFinite(prefs.weatherLon) && prefs.weatherLat !== null
+      ? { lat: prefs.weatherLat, lon: prefs.weatherLon }
+      : {};
+  }
+
+  function defaultSymbolList() {
+    return window.SGFutures
+      ? ["ZC", "ZS", "ZW"].flatMap(root => window.SGFutures.frontMonths(root, 2))
+      : [];
+  }
+
+  const prefs = Object.assign(
+    {
+      theme: "dark",          // mode: dark | light
+      style: "floor",         // theme: floor | modern | harvest
+      accent: "",             // custom company colors ("" = theme default)
+      barColor: "",
+      title: DEFAULT_TITLE,
+      refreshMin: 5,
+      locked: false,
+      ticker: true,
+      futuresTicker: false,
+      fit: true,
+      cashFeed: "",           // last cash bid feed URL entered (reused by new panels)
+      weatherLat: null,       // last weather location entered
+      weatherLon: null
+    },
+    readJSON(PREFS_KEY, {})
+  );
 
   let layout = readJSON(LAYOUT_KEY, null);
   if (!Array.isArray(layout)) layout = defaultLayout();
@@ -81,21 +122,6 @@
     p.span = Math.max(MIN_SPAN, Math.min(GRID_COLS, Number(p.span) || 6));
   });
 
-  const prefs = Object.assign(
-    {
-      theme: "dark",          // mode: dark | light
-      style: "floor",         // theme: floor | modern | harvest
-      accent: "",             // custom company colors ("" = theme default)
-      barColor: "",
-      title: DEFAULT_TITLE,
-      refreshMin: 5,
-      locked: false,
-      ticker: true,
-      futuresTicker: false,
-      fit: true
-    },
-    readJSON(PREFS_KEY, {})
-  );
 
   function saveLayout() {
     // groupBy is only a seed for new panels; the widget owns it afterwards
@@ -119,7 +145,7 @@
 
   function defaultFuturesSymbols() {
     if (!window.SGFutures) return "";
-    return ["ZC", "ZS", "ZW"].flatMap(root => window.SGFutures.frontMonths(root, 2)).join(", ");
+    return defaultSymbolList().join(", ");
   }
 
   function newId() {
@@ -261,16 +287,13 @@
 
         <fieldset class="qb-fields" data-type="cashbids">
           <label>
-            Feed URL
-            <input name="json" type="url" value="${escapeHtml(DEFAULT_FEED)}" required>
-          </label>
-          <label>
             Group By
             <select name="groupBy">
               <option value="location">Location</option>
               <option value="commodity">Commodity</option>
             </select>
           </label>
+          <p class="qb-hint">Uses your saved cash bid feed. If there isn't one yet, the panel will ask for the URL.</p>
         </fieldset>
 
         <fieldset class="qb-fields" data-type="futures" hidden disabled>
@@ -290,20 +313,6 @@
         </fieldset>
 
         <fieldset class="qb-fields" data-type="weather" hidden disabled>
-          <div class="qb-row">
-            <label>
-              Latitude
-              <input name="lat" type="number" step="any" min="-90" max="90" placeholder="41.5868" required>
-            </label>
-            <label>
-              Longitude
-              <input name="lon" type="number" step="any" min="-180" max="180" placeholder="-93.6250" required>
-            </label>
-          </div>
-          <div class="qb-geo-row">
-            <button type="button" class="qb-btn qb-geo">Use my location</button>
-            <span class="qb-geo-status" aria-live="polite"></span>
-          </div>
           <label>
             Units
             <select name="units">
@@ -311,7 +320,7 @@
               <option value="si">°C, km/h</option>
             </select>
           </label>
-          <p class="qb-hint">U.S. locations only. Tip: right-click a spot in Google Maps to copy its coordinates.</p>
+          <p class="qb-hint">Uses your saved location, or the panel will ask for one (you can use your current location).</p>
         </fieldset>
         <label>
           Width
@@ -351,7 +360,7 @@
 
   function createPanel(p) {
     const el = document.createElement("section");
-    el.className = "qb-panel";
+    el.className = "qb-panel qb-panel-" + panelType(p);
     el.dataset.id = p.id;
 
     el.innerHTML = `
@@ -360,6 +369,8 @@
         <span class="qb-live" title="Waiting for data"></span>
         <h2 class="qb-panel-title" title="Double-click to rename">${escapeHtml(p.title)}</h2>
         <span class="qb-panel-time"></span>
+        ${panelType(p) === "cashbids" ? `<button type="button" class="qb-icon-btn qb-panel-setup" title="Change feed URL" aria-label="Change cash bid feed URL for ${escapeHtml(p.title)}">🔗</button>` : ""}
+        ${panelType(p) === "weather" ? `<button type="button" class="qb-icon-btn qb-panel-setup" title="Change location" aria-label="Change weather location for ${escapeHtml(p.title)}">📍</button>` : ""}
         <button type="button" class="qb-icon-btn qb-panel-refresh" title="Refresh panel" aria-label="Refresh ${escapeHtml(p.title)}">⟳</button>
         <button type="button" class="qb-icon-btn qb-panel-close" title="Remove panel" aria-label="Remove ${escapeHtml(p.title)}">×</button>
       </header>
@@ -392,9 +403,18 @@
       live.title = "Last refresh failed";
     });
 
+    if (needsSetup(p)) renderSetup(p, el);
+    else mountWidget(p, el);
+
+    return el;
+  }
+
+  /* ---------- mount the panel's widget ---------- */
+
+  function mountWidget(p, el) {
+    const widgetEl = el.querySelector(".qb-widget");
     let api = null;
     if (panelType(p) === "futures") {
-      el.classList.add("qb-panel-futures");
       api = window.SGFutures
         ? window.SGFutures.mount(widgetEl, {
             symbols: p.symbols,
@@ -417,7 +437,6 @@
         loadFuturesTicker();
       });
     } else if (panelType(p) === "weather") {
-      el.classList.add("qb-panel-weather");
       api = window.SGWeather
         ? window.SGWeather.mount(widgetEl, {
             lat: p.lat,
@@ -436,9 +455,173 @@
       });
     }
     if (api) instances.set(p.id, api);
-
-    return el;
   }
+
+  /* ============================================================
+     PANEL SETUP — cash bid panels need a feed URL and weather panels
+     need a location before they can load. Asked for inside the panel
+     and remembered for the next panel of that type.
+     ============================================================ */
+
+  function needsSetup(p) {
+    if (panelType(p) === "cashbids") return !p.json;
+    if (panelType(p) === "weather") {
+      return !(isFinite(p.lat) && isFinite(p.lon) && p.lat !== null && p.lon !== null);
+    }
+    return false;
+  }
+
+  function renderSetup(p, el, canCancel) {
+    const widgetEl = el.querySelector(".qb-widget");
+    const api = instances.get(p.id);
+    if (api) api.destroy();
+    instances.delete(p.id);
+
+    const live = el.querySelector(".qb-live");
+    live.className = "qb-live";
+    live.title = "Needs setup";
+    el.querySelector(".qb-panel-time").textContent = "";
+
+    const isCash = panelType(p) === "cashbids";
+    const loc = rememberedLocation();
+
+    widgetEl.innerHTML = `
+      <form class="qb-setup" novalidate>
+        <h3>${isCash ? "Connect your cash bids" : "Set the weather location"}</h3>
+        ${isCash ? `
+          <label>
+            Cash bid feed URL
+            <input name="url" type="url" required spellcheck="false"
+                   placeholder="https://yourcompany.agricharts.com/inc/cashbids/cashbids-json.php"
+                   value="${escapeHtml(p.json || rememberedFeed())}">
+          </label>
+          <p class="qb-hint">The JSON address of your cash bid feed. It's saved on this device and used for new Cash Bids panels too.</p>
+        ` : `
+          <div class="qb-row">
+            <label>
+              Latitude
+              <input name="lat" type="number" step="any" min="-90" max="90" required placeholder="41.5868"
+                     value="${escapeHtml(p.lat ?? loc.lat ?? "")}">
+            </label>
+            <label>
+              Longitude
+              <input name="lon" type="number" step="any" min="-180" max="180" required placeholder="-93.6250"
+                     value="${escapeHtml(p.lon ?? loc.lon ?? "")}">
+            </label>
+          </div>
+          <button type="button" class="qb-btn qb-setup-geo">📍 Use my current location</button>
+          <label>
+            Units
+            <select name="units">
+              <option value="us"${p.units !== "si" ? " selected" : ""}>°F, mph</option>
+              <option value="si"${p.units === "si" ? " selected" : ""}>°C, km/h</option>
+            </select>
+          </label>
+          <p class="qb-hint">U.S. locations only (National Weather Service). Tip: right-click a spot in Google Maps to copy its coordinates.</p>
+        `}
+        <p class="qb-setup-msg" role="alert"></p>
+        <div class="qb-setup-actions">
+          ${canCancel ? `<button type="button" class="qb-btn qb-setup-cancel">Cancel</button>` : ""}
+          <button type="submit" class="qb-btn qb-btn-primary">${isCash ? "Load bids" : "Show weather"}</button>
+        </div>
+      </form>`;
+
+    const form = widgetEl.querySelector(".qb-setup");
+    const msg = form.querySelector(".qb-setup-msg");
+    const submit = form.querySelector("button[type=submit]");
+
+    const cancel = form.querySelector(".qb-setup-cancel");
+    if (cancel) cancel.addEventListener("click", () => {
+      widgetEl.innerHTML = "";
+      mountWidget(p, el);
+    });
+
+    const geo = form.querySelector(".qb-setup-geo");
+    if (geo) geo.addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        msg.textContent = "Location isn't available in this browser — enter coordinates instead.";
+        return;
+      }
+      msg.textContent = "Finding your location…";
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          form.elements.lat.value = pos.coords.latitude.toFixed(4);
+          form.elements.lon.value = pos.coords.longitude.toFixed(4);
+          msg.textContent = "";
+          form.requestSubmit ? form.requestSubmit() : submit.click();
+        },
+        err => {
+          msg.textContent = err.code === 1
+            ? "Location permission was denied — enter coordinates instead."
+            : "Couldn't get your location — enter coordinates instead.";
+        },
+        { timeout: 10000, maximumAge: 600000 }
+      );
+    });
+
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      msg.textContent = "";
+
+      if (!isCash) {
+        const lat = Number(form.elements.lat.value);
+        const lon = Number(form.elements.lon.value);
+        if (form.elements.lat.value === "" || form.elements.lon.value === ""
+            || !isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+          msg.textContent = "Enter a latitude (-90 to 90) and longitude (-180 to 180), or use your current location.";
+          return;
+        }
+        p.lat = Number(lat.toFixed(4));
+        p.lon = Number(lon.toFixed(4));
+        p.units = form.elements.units.value === "si" ? "si" : "us";
+        prefs.weatherLat = p.lat;
+        prefs.weatherLon = p.lon;
+        savePrefs();
+        saveLayout();
+        widgetEl.innerHTML = "";
+        mountWidget(p, el);
+        return;
+      }
+
+      const url = form.elements.url.value.trim();
+      if (!/^https?:\/\/\S+$/i.test(url)) {
+        msg.textContent = "Enter the full feed address, starting with https://";
+        return;
+      }
+
+      // Check the URL really returns cash bids before saving it
+      submit.disabled = true;
+      submit.textContent = "Checking…";
+      fetch(url, { cache: "no-cache" })
+        .then(r => {
+          if (!r.ok) throw new Error(`The feed returned an error (${r.status}).`);
+          return r.json().catch(() => { throw new Error("That address didn't return cash bid data (JSON)."); });
+        })
+        .then(data => {
+          if (!data || !Array.isArray(data.bids)) {
+            throw new Error("That address didn't return cash bids — check that it's your cash bid JSON feed.");
+          }
+          p.json = url;
+          prefs.cashFeed = url;
+          savePrefs();
+          saveLayout();
+          widgetEl.innerHTML = "";
+          mountWidget(p, el);
+          loadTicker(true);
+        })
+        .catch(err => {
+          submit.disabled = false;
+          submit.textContent = "Load bids";
+          msg.textContent = err instanceof TypeError
+            ? "Couldn't load that address. Check the URL — the feed may also block access from this site."
+            : err.message;
+        });
+    });
+
+    const first = form.querySelector("input");
+    if (first && !first.value) setTimeout(() => first.focus({ preventScroll: true }), 0);
+  }
+
 
   function panelById(id) {
     return layout.find(p => p.id === id);
@@ -503,6 +686,9 @@
       if (confirm(`Remove "${p ? p.title : "this panel"}"?`)) {
         removePanel(panel.dataset.id);
       }
+    } else if (e.target.closest(".qb-panel-setup") && !prefs.locked) {
+      const p = panelById(panel.dataset.id);
+      if (p) renderSetup(p, panel, !needsSetup(p));
     } else if (e.target.closest(".qb-panel-refresh")) {
       const api = instances.get(panel.dataset.id);
       if (api) api.refresh();
@@ -871,8 +1057,18 @@
 
   function loadTicker(onlyIfFeedChanged) {
     if (!prefs.ticker || !window.SGTicker) return;
-    const first = layout.find(p => panelType(p) === "cashbids");
+    const first = layout.find(p => panelType(p) === "cashbids" && p.json);
     const url = (first && first.json) || DEFAULT_FEED;
+
+    if (!url) {
+      if (ticker) ticker.destroy();
+      ticker = null;
+      tickerUrl = null;
+      tickerEl.innerHTML = `<p class="qb-ticker-hint">Cash bid ticker: connect a feed in a Cash Bids panel to see prices here.</p>`;
+      return;
+    }
+    const hint = tickerEl.querySelector(".qb-ticker-hint");
+    if (hint) hint.remove();
 
     if (ticker && tickerUrl === url) {
       if (!onlyIfFeedChanged) ticker.refresh();
@@ -1036,7 +1232,6 @@
   /* Add panel dialog */
 
   const dialogForm = dialog.querySelector("form");
-  const geoStatus = dialog.querySelector(".qb-geo-status");
 
   function setDialogType(type) {
     dialogForm.querySelectorAll(".qb-fields").forEach(fs => {
@@ -1057,27 +1252,6 @@
   dialogForm.elements.title.addEventListener("input", e => { e.target.dataset.touched = "1"; });
   dialogForm.elements.span.addEventListener("change", e => { e.target.dataset.touched = "1"; });
 
-  dialog.querySelector(".qb-geo").addEventListener("click", () => {
-    if (!navigator.geolocation) {
-      geoStatus.textContent = "Location isn't available in this browser.";
-      return;
-    }
-    geoStatus.textContent = "Finding you…";
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        dialogForm.elements.lat.value = pos.coords.latitude.toFixed(4);
-        dialogForm.elements.lon.value = pos.coords.longitude.toFixed(4);
-        geoStatus.textContent = "Location filled in.";
-      },
-      err => {
-        geoStatus.textContent = err.code === 1
-          ? "Location permission was denied."
-          : "Couldn't get your location.";
-      },
-      { timeout: 10000, maximumAge: 600000 }
-    );
-  });
-
   function openAddDialog() {
     const form = dialogForm;
     form.reset();
@@ -1085,13 +1259,12 @@
     form.elements.symbols.value = defaultFuturesSymbols();
     delete form.elements.title.dataset.touched;
     delete form.elements.span.dataset.touched;
-    geoStatus.textContent = "";
     setDialogType("cashbids");
     if (typeof dialog.showModal === "function") {
       dialog.showModal();
     } else {
       // Very old browsers: fall back to a quick default panel
-      addPanel({ id: newId(), title: "Cash Bids", json: DEFAULT_FEED, span: 6 });
+      addPanel({ id: newId(), type: "cashbids", title: "Cash Bids", json: rememberedFeed(), span: 6 });
     }
   }
 
@@ -1120,9 +1293,8 @@
         id: newId(),
         type: "weather",
         title: String(data.get("title") || "Weather").trim(),
-        lat: Number(Number(data.get("lat")).toFixed(4)),
-        lon: Number(Number(data.get("lon")).toFixed(4)),
         units: data.get("units") === "si" ? "si" : "us",
+        ...rememberedLocation(),
         span: Number(data.get("span")) || 4
       });
       return;
@@ -1132,7 +1304,7 @@
       id: newId(),
       type: "cashbids",
       title: String(data.get("title") || "Cash Bids").trim(),
-      json: String(data.get("json") || DEFAULT_FEED).trim(),
+      json: rememberedFeed(),
       span: Number(data.get("span")) || 6,
       groupBy: data.get("groupBy") === "commodity" ? "commodity" : "location"
     });
