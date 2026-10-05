@@ -163,6 +163,7 @@
         <tr><td><code>data-format</code></td><td><code>decimal</code></td><td><code>decimal</code> (497.25) or <code>fraction</code> (497'2, grain eighths)</td></tr>
         <tr><td><code>data-theme</code></td><td>table <code>light</code>, ticker <code>dark</code></td><td><code>light</code>, <code>dark</code>, or <code>none</code> (inherit your site's colors)</td></tr>
         <tr><td><code>data-refresh</code></td><td><code>30</code></td><td>Seconds between refreshes (0 turns it off)</td></tr>
+        <tr><td><code>data-editable</code></td><td><code>false</code></td><td>Table only. <code>true</code> adds an "Add symbol" box and a × on each row so viewers can change the list. Changes last until the page reloads; listen for the <code>sg:symbols</code> event to save them. (Quoteboard panels are always editable and save automatically.)</td></tr>
         <tr><td><code>data-apikey</code></td><td>none</td><td>Builds an OnDemand API key into the widget so viewers aren't asked for one. <strong>Visible to anyone in the page source</strong> — only use a key you're comfortable publishing.</td></tr>
         <tr><td><code>data-feed</code></td><td>OnDemand <code>getQuote.json</code></td><td>Alternate quote URL with the same response format, e.g. your own proxy</td></tr>
         <tr><td><code>data-label</code></td><td><code>Futures</code></td><td>Ticker only. Badge text, or <code>""</code> to hide it.</td></tr>

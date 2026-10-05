@@ -118,6 +118,100 @@
   color: var(--sgf-muted);
 }
 
+/* ---------- add / remove symbols ---------- */
+
+.sgf-bar {
+  flex-wrap: wrap;
+}
+
+.sgf-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sgf-add input {
+  width: 170px;
+  font: inherit;
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--sgf-text);
+  background: var(--sgf-bg-2);
+  border: 1px solid var(--sgf-line);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+.sgf-add input::placeholder {
+  text-transform: none;
+  color: var(--sgf-muted);
+}
+
+.sgf-add input:focus-visible {
+  outline: none;
+  border-color: var(--sgf-accent);
+}
+
+.sgf-add .sgf-btn {
+  padding: 5px 10px;
+}
+
+.sgf-add-msg {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--sgf-muted);
+}
+
+.sgf-add-msg:empty {
+  display: none;
+}
+
+.sgf-add-msg.sgf-add-error {
+  color: var(--sgf-down);
+}
+
+.sgf .sgf-col-remove {
+  width: 1%;
+  padding-left: 0;
+  padding-right: 6px;
+  text-align: right;
+}
+
+.sgf-remove {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--sgf-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+/* Show the × on row hover / keyboard focus; always on touch screens */
+.sgf tr:hover .sgf-remove,
+.sgf-remove:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .sgf-remove {
+    opacity: 1;
+  }
+}
+
+.sgf-remove:hover,
+.sgf-remove:focus-visible {
+  color: var(--sgf-down);
+  border-color: var(--sgf-line);
+  outline: none;
+}
+
 /* ---------- settings menu ---------- */
 
 .sgf-menu {
