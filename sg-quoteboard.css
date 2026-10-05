@@ -202,22 +202,40 @@ body {
    ============================================================ */
 
 .qb-board {
+  --qb-gap: 12px;
+  position: relative;
   flex: 1;
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  align-items: start;
-  gap: 12px;
   padding: 12px;
 }
 
+/* Fit to screen: the page never scrolls; the board fills the window */
+.qb-root.qb-fit {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.qb-root.qb-fit .qb-board {
+  min-height: 0;
+  overflow-y: auto; /* only used if the window is extremely short */
+}
+
+/* Panels are positioned by sg-quoteboard.js (packed 12-column grid) */
 .qb-panel,
 .qb-placeholder {
-  grid-column: span var(--qb-span, 6);
-  height: var(--qb-height, 480px);
+  position: absolute;
+  transition: left .18s ease, top .18s ease, width .18s ease, height .18s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qb-panel,
+  .qb-placeholder {
+    transition: none;
+  }
 }
 
 .qb-panel {
-  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -238,8 +256,8 @@ body {
 }
 
 .qb-panel.qb-dragging {
-  position: fixed;
   z-index: 200;
+  transition: none;
   pointer-events: none;
   box-shadow: var(--qb-shadow);
   border-color: var(--qb-accent);
@@ -401,7 +419,6 @@ body {
 }
 
 .qb-empty {
-  grid-column: 1 / -1;
   text-align: center;
   padding: 80px 16px;
   color: var(--qb-muted);
@@ -809,12 +826,43 @@ html[data-theme="light"] .qb-root .sgw .sgw-i-moon {
    NARROW SCREENS — one column, panels stack
    ============================================================ */
 
-@media (max-width: 900px) {
-  .qb-panel,
-  .qb-placeholder {
-    grid-column: 1 / -1;
-  }
+/* Narrow screens: one column, page scrolls (set by sg-quoteboard.js) */
+.qb-root.qb-stacked .qb-board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--qb-gap);
+}
 
+.qb-root.qb-stacked .qb-panel {
+  position: relative;
+  transition: none;
+}
+
+.qb-root.qb-stacked .qb-resize,
+.qb-root.qb-stacked .qb-grip,
+.qb-root.qb-stacked .qb-toggle-fit {
+  display: none;
+}
+
+.qb-root.qb-stacked .qb-panel-head {
+  cursor: default;
+}
+
+/* "Scaled to fit" chip */
+.qb-overfull-note {
+  font-size: 12px;
+  color: var(--qb-accent);
+  border: 1px dashed var(--qb-accent);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: help;
+}
+
+.qb-overfull-note[hidden] {
+  display: none;
+}
+
+@media (max-width: 900px) {
   .qb-topbar {
     flex-wrap: wrap;
   }
@@ -832,8 +880,8 @@ html[data-theme="light"] .qb-root .sgw .sgw-i-moon {
   }
 
   .qb-board {
+    --qb-gap: 8px;
     padding: 8px;
-    gap: 8px;
   }
 
   .qb-clock-date {
