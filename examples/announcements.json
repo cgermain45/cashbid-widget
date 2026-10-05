@@ -1,0 +1,20 @@
+{
+  "interval": 8,
+  "slides": [
+    {
+      "title": "Harvest hours",
+      "text": "Open 6am – 10pm, Monday through Saturday\nScale closes at 9:45pm",
+      "background": "#14532d"
+    },
+    {
+      "title": "Harvest Storage Special",
+      "text": "Free drying on corn delivered through October 31. Ask the scale house for details.",
+      "image": "https://cgermain45.github.io/cashbid-widget/examples/harvest-ad.svg",
+      "imageMode": "side"
+    },
+    {
+      "image": "https://cgermain45.github.io/cashbid-widget/examples/harvest-ad.svg",
+      "imageMode": "fill"
+    }
+  ]
+}

@@ -1364,3 +1364,21 @@ html[data-theme="light"] .qb-root .sgw .sgw-i-moon {
   background: var(--qb-panel-2);
   border-bottom: 1px solid var(--qb-line);
 }
+
+/* ============================================================
+   ANNOUNCEMENTS PANEL (sg-announce.css) — mapped onto the board theme
+   ============================================================ */
+
+.qb-root .sga {
+  --sga-bg: var(--qb-panel);
+  --sga-bg-2: var(--qb-panel-2);
+  --sga-text: var(--qb-text);
+  --sga-muted: var(--qb-muted);
+  --sga-line: var(--qb-line);
+  --sga-accent: var(--qb-accent);
+  --sga-accent-ink: var(--qb-accent-ink);
+  --sga-title-font: var(--qb-title-font);
+  height: 100%;
+  border: 0;
+  border-radius: 0 0 var(--qb-radius) var(--qb-radius);
+}
