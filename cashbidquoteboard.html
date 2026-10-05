@@ -15,16 +15,14 @@
 
 <!--
   Panels can be cash bids, futures quotes or weather. Optional attributes:
-    data-json            — default cash bid feed URL for new panels
+    data-json            — cash bid feed URL to use without asking (otherwise
+                           Cash Bids panels ask for it once and remember it)
     data-futures-apikey  — built-in Barchart OnDemand key for futures panels
                            (visible in page source; otherwise each viewer
                            enters their own key in the panel)
     data-futures-feed    — alternate getQuote URL (e.g. a proxy)
 -->
-<div
-  id="sg-quoteboard"
-  data-json="https://stonegrain.agricharts.com/inc/cashbids/cashbids-json.php">
-</div>
+<div id="sg-quoteboard"></div>
 
 <script src="sg-cashbid-widget-dev.js"></script>
 <script src="sg-ticker.js"></script>
