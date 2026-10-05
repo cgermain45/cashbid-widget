@@ -165,7 +165,7 @@
           Panel Type
           <select name="type">
             <option value="cashbids">Cash Bids</option>
-            ${window.SGFutures ? `<option value="futures">Futures quotes (Barchart sign-in)</option>` : ""}
+            ${window.SGFutures ? `<option value="futures">Futures quotes (Barchart OnDemand)</option>` : ""}
             ${window.SGWeather ? `<option value="weather">Weather (National Weather Service)</option>` : ""}
           </select>
         </label>
@@ -201,7 +201,7 @@
               <option value="fraction">Fraction (497'2)</option>
             </select>
           </label>
-          <p class="qb-hint">Comma-separated contracts, e.g. ZCZ26 = Corn Dec 26. You'll sign in with your Barchart username and password inside the panel.</p>
+          <p class="qb-hint">Comma-separated contracts, e.g. ZCZ26 = Corn Dec 26. You'll enter your Barchart OnDemand API key inside the panel.</p>
         </fieldset>
 
         <fieldset class="qb-fields" data-type="weather" hidden disabled>
@@ -315,7 +315,10 @@
             format: p.format,
             theme: "dark",
             refresh: 30,
-            storagePrefix: PANEL_PREFIX(p.id)
+            storagePrefix: PANEL_PREFIX(p.id),
+            // Optional board-wide settings on #sg-quoteboard
+            apikey: root.dataset.futuresApikey || undefined,
+            feed: root.dataset.futuresFeed || undefined
           })
         : null;
       if (!api) widgetEl.innerHTML = `<p class="qb-missing">Futures need sg-futures.js on this page.</p>`;

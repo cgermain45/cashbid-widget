@@ -7,7 +7,7 @@ Cash bid embed widgets.
 | [`index.html`](index.html) | `sg-cashbid-widget-dev.js/.css` | Dev cash bid table (sorting, grouping, settings, rounding) |
 | [`quoteboard.html`](quoteboard.html) | `sg-quoteboard.js/.css` + dev widget, ticker, futures, weather | Drag-and-drop quote screen of cash bid, futures and weather panels |
 | [`ticker.html`](ticker.html) | `sg-ticker.js/.css` | Standalone scrolling price ticker — demo, embed code and options |
-| [`futures.html`](futures.html) | `sg-futures.js/.css` | Futures quotes table and ticker (Barchart OpenFeed sign-in) — demo, embed code and options |
+| [`futures.html`](futures.html) | `sg-futures.js/.css` | Futures quotes table and ticker (Barchart OnDemand API key) — demo, embed code and options |
 | [`weather.html`](weather.html) | `sg-weather.js/.css` | Standalone National Weather Service widget (U.S., no API key) — demo, embed code and options |
 
 ## Ticker embed
@@ -38,4 +38,4 @@ See `weather.html` for all options. Data from [api.weather.gov](https://www.weat
 <script src="https://cgermain45.github.io/cashbid-widget/sg-futures.js"></script>
 ```
 
-Viewers sign in with their Barchart OpenFeed username and password inside the widget. Credentials are never part of the embed code; they're kept in the viewer's browser (session, or "remember me"). See `futures.html` for all options.
+Viewers enter a Barchart OnDemand API key inside the widget; it's kept in their browser (session, or "remember on this device") and isn't part of the embed code. A site owner can build a key in with `data-apikey`, but it's then visible in the page source. See `futures.html` for all options.
