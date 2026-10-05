@@ -4,6 +4,7 @@
      A grid of cash bid widgets you can add, drag, resize and remove.
      Requires sg-cashbid-widget-dev.js (window.SGCashBid).
      Weather panels need sg-weather.js (window.SGWeather) — optional.
+     Futures panels need sg-futures.js (window.SGFutures) — optional.
      ============================================================ */
 
   const root = document.getElementById("sg-quoteboard");
@@ -63,18 +64,25 @@
     // groupBy is only a seed for new panels; the widget owns it afterwards
     writeJSON(LAYOUT_KEY, layout.map(p => {
       const base = { id: p.id, type: panelType(p), title: p.title, span: p.span, height: p.height };
-      return panelType(p) === "weather"
-        ? Object.assign(base, { lat: p.lat, lon: p.lon, units: p.units })
-        : Object.assign(base, { json: p.json });
+      switch (panelType(p)) {
+        case "weather": return Object.assign(base, { lat: p.lat, lon: p.lon, units: p.units });
+        case "futures": return Object.assign(base, { symbols: p.symbols, format: p.format });
+        default: return Object.assign(base, { json: p.json });
+      }
     }));
   }
 
   function panelType(p) {
-    return p.type === "weather" ? "weather" : "cashbids";
+    return p.type === "weather" || p.type === "futures" ? p.type : "cashbids";
   }
 
   function savePrefs() {
     writeJSON(PREFS_KEY, prefs);
+  }
+
+  function defaultFuturesSymbols() {
+    if (!window.SGFutures) return "";
+    return ["ZC", "ZS", "ZW"].flatMap(root => window.SGFutures.frontMonths(root, 2)).join(", ");
   }
 
   function newId() {
@@ -157,6 +165,7 @@
           Panel Type
           <select name="type">
             <option value="cashbids">Cash Bids</option>
+            ${window.SGFutures ? `<option value="futures">Futures quotes (Barchart sign-in)</option>` : ""}
             ${window.SGWeather ? `<option value="weather">Weather (National Weather Service)</option>` : ""}
           </select>
         </label>
@@ -177,6 +186,22 @@
               <option value="commodity">Commodity</option>
             </select>
           </label>
+        </fieldset>
+
+        <fieldset class="qb-fields" data-type="futures" hidden disabled>
+          <label>
+            Symbols
+            <input name="symbols" type="text" required spellcheck="false" autocapitalize="characters"
+                   value="${escapeHtml(defaultFuturesSymbols())}">
+          </label>
+          <label>
+            Price Format
+            <select name="format">
+              <option value="decimal">Decimal (497.25)</option>
+              <option value="fraction">Fraction (497'2)</option>
+            </select>
+          </label>
+          <p class="qb-hint">Comma-separated contracts, e.g. ZCZ26 = Corn Dec 26. You'll sign in with your Barchart username and password inside the panel.</p>
         </fieldset>
 
         <fieldset class="qb-fields" data-type="weather" hidden disabled>
@@ -282,7 +307,19 @@
     });
 
     let api = null;
-    if (panelType(p) === "weather") {
+    if (panelType(p) === "futures") {
+      el.classList.add("qb-panel-futures");
+      api = window.SGFutures
+        ? window.SGFutures.mount(widgetEl, {
+            symbols: p.symbols,
+            format: p.format,
+            theme: "dark",
+            refresh: 30,
+            storagePrefix: PANEL_PREFIX(p.id)
+          })
+        : null;
+      if (!api) widgetEl.innerHTML = `<p class="qb-missing">Futures need sg-futures.js on this page.</p>`;
+    } else if (panelType(p) === "weather") {
       el.classList.add("qb-panel-weather");
       api = window.SGWeather
         ? window.SGWeather.mount(widgetEl, {
@@ -649,9 +686,11 @@
       fs.disabled = !on;   // disabled fieldsets skip validation and FormData
     });
     const title = dialogForm.elements.title;
-    if (!title.dataset.touched) title.value = type === "weather" ? "Weather" : "Cash Bids";
+    if (!title.dataset.touched) {
+      title.value = { weather: "Weather", futures: "Futures" }[type] || "Cash Bids";
+    }
     if (!dialogForm.elements.span.dataset.touched) {
-      dialogForm.elements.span.value = type === "weather" ? "4" : "6";
+      dialogForm.elements.span.value = { weather: "4", futures: "6" }[type] || "6";
     }
   }
 
@@ -683,6 +722,8 @@
   function openAddDialog() {
     const form = dialogForm;
     form.reset();
+    // Front-month defaults move with the calendar
+    form.elements.symbols.value = defaultFuturesSymbols();
     delete form.elements.title.dataset.touched;
     delete form.elements.span.dataset.touched;
     geoStatus.textContent = "";
@@ -700,6 +741,21 @@
   dialog.querySelector("form").addEventListener("submit", e => {
     const form = e.target;
     const data = new FormData(form);
+
+    if (data.get("type") === "futures") {
+      const symbols = String(data.get("symbols") || "")
+        .split(/[\s,]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+      addPanel({
+        id: newId(),
+        type: "futures",
+        title: String(data.get("title") || "Futures").trim(),
+        symbols,
+        format: data.get("format") === "fraction" ? "fraction" : "decimal",
+        span: Number(data.get("span")) || 6,
+        height: 360
+      });
+      return;
+    }
 
     if (data.get("type") === "weather") {
       addPanel({
