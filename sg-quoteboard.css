@@ -471,6 +471,71 @@ body {
   margin-top: 4px;
 }
 
+/* Panel-type fields in the Add Panel dialog */
+
+.qb-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.qb-fields[hidden] {
+  display: none;
+}
+
+.qb-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.qb-geo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.qb-geo-status,
+.qb-hint {
+  font-size: 12px;
+  color: var(--qb-muted);
+}
+
+.qb-hint {
+  margin: 0;
+}
+
+/* ============================================================
+   WEATHER PANEL (sg-weather.css) — mapped onto the board's theme
+   ============================================================ */
+
+.qb-root .sgw {
+  --sgw-bg: var(--qb-panel);
+  --sgw-bg-2: var(--qb-panel-2);
+  --sgw-text: var(--qb-text);
+  --sgw-muted: var(--qb-muted);
+  --sgw-line: var(--qb-line);
+  --sgw-accent: var(--qb-accent);
+  height: 100%;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 0 0 8px 8px;
+}
+
+html[data-theme="light"] .qb-root .sgw .sgw-i-moon {
+  fill: #94a3b8;
+}
+
+.qb-missing {
+  padding: 16px;
+  color: var(--qb-muted);
+}
+
 /* ============================================================
    WIDGET INSIDE A PANEL — dense quote-screen restyle
    ============================================================ */

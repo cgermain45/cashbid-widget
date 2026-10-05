@@ -3,6 +3,7 @@
      CASH BID QUOTEBOARD
      A grid of cash bid widgets you can add, drag, resize and remove.
      Requires sg-cashbid-widget-dev.js (window.SGCashBid).
+     Weather panels need sg-weather.js (window.SGWeather) — optional.
      ============================================================ */
 
   const root = document.getElementById("sg-quoteboard");
@@ -60,8 +61,16 @@
 
   function saveLayout() {
     // groupBy is only a seed for new panels; the widget owns it afterwards
-    writeJSON(LAYOUT_KEY, layout.map(({ id, title, json, span, height }) =>
-      ({ id, title, json, span, height })));
+    writeJSON(LAYOUT_KEY, layout.map(p => {
+      const base = { id: p.id, type: panelType(p), title: p.title, span: p.span, height: p.height };
+      return panelType(p) === "weather"
+        ? Object.assign(base, { lat: p.lat, lon: p.lon, units: p.units })
+        : Object.assign(base, { json: p.json });
+    }));
+  }
+
+  function panelType(p) {
+    return p.type === "weather" ? "weather" : "cashbids";
   }
 
   function savePrefs() {
@@ -145,20 +154,55 @@
       <form method="dialog" class="qb-dialog-form">
         <h2>Add Panel</h2>
         <label>
+          Panel Type
+          <select name="type">
+            <option value="cashbids">Cash Bids</option>
+            ${window.SGWeather ? `<option value="weather">Weather (National Weather Service)</option>` : ""}
+          </select>
+        </label>
+        <label>
           Title
           <input name="title" type="text" value="Cash Bids" required>
         </label>
-        <label>
-          Feed URL
-          <input name="json" type="url" value="${escapeHtml(DEFAULT_FEED)}" required>
-        </label>
-        <label>
-          Group By
-          <select name="groupBy">
-            <option value="location">Location</option>
-            <option value="commodity">Commodity</option>
-          </select>
-        </label>
+
+        <fieldset class="qb-fields" data-type="cashbids">
+          <label>
+            Feed URL
+            <input name="json" type="url" value="${escapeHtml(DEFAULT_FEED)}" required>
+          </label>
+          <label>
+            Group By
+            <select name="groupBy">
+              <option value="location">Location</option>
+              <option value="commodity">Commodity</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset class="qb-fields" data-type="weather" hidden disabled>
+          <div class="qb-row">
+            <label>
+              Latitude
+              <input name="lat" type="number" step="any" min="-90" max="90" placeholder="41.5868" required>
+            </label>
+            <label>
+              Longitude
+              <input name="lon" type="number" step="any" min="-180" max="180" placeholder="-93.6250" required>
+            </label>
+          </div>
+          <div class="qb-geo-row">
+            <button type="button" class="qb-btn qb-geo">Use my location</button>
+            <span class="qb-geo-status" aria-live="polite"></span>
+          </div>
+          <label>
+            Units
+            <select name="units">
+              <option value="us">°F, mph</option>
+              <option value="si">°C, km/h</option>
+            </select>
+          </label>
+          <p class="qb-hint">U.S. locations only. Tip: right-click a spot in Google Maps to copy its coordinates.</p>
+        </fieldset>
         <label>
           Width
           <select name="span">
@@ -237,12 +281,27 @@
       live.title = "Last refresh failed";
     });
 
-    const api = window.SGCashBid.mount(widgetEl, {
-      json: p.json,
-      storagePrefix: PANEL_PREFIX(p.id),
-      autoRefresh: false
-    });
-    instances.set(p.id, api);
+    let api = null;
+    if (panelType(p) === "weather") {
+      el.classList.add("qb-panel-weather");
+      api = window.SGWeather
+        ? window.SGWeather.mount(widgetEl, {
+            lat: p.lat,
+            lon: p.lon,
+            units: p.units,
+            theme: "dark",
+            refresh: 0
+          })
+        : null;
+      if (!api) widgetEl.innerHTML = `<p class="qb-missing">Weather needs sg-weather.js on this page.</p>`;
+    } else {
+      api = window.SGCashBid.mount(widgetEl, {
+        json: p.json,
+        storagePrefix: PANEL_PREFIX(p.id),
+        autoRefresh: false
+      });
+    }
+    if (api) instances.set(p.id, api);
 
     return el;
   }
@@ -493,7 +552,8 @@
 
   function loadTicker(onlyIfFeedChanged) {
     if (!prefs.ticker || !window.SGTicker) return;
-    const url = (layout[0] && layout[0].json) || DEFAULT_FEED;
+    const first = layout.find(p => panelType(p) === "cashbids");
+    const url = (first && first.json) || DEFAULT_FEED;
 
     if (ticker && tickerUrl === url) {
       if (!onlyIfFeedChanged) ticker.refresh();
@@ -529,7 +589,8 @@
   }
 
   function refreshAll() {
-    instances.forEach(api => api.refresh());
+    // { auto: true } lets weather panels skip refreshes they don't need
+    instances.forEach(api => api.refresh({ auto: true }));
     loadTicker();
   }
 
@@ -578,9 +639,54 @@
 
   /* Add panel dialog */
 
+  const dialogForm = dialog.querySelector("form");
+  const geoStatus = dialog.querySelector(".qb-geo-status");
+
+  function setDialogType(type) {
+    dialogForm.querySelectorAll(".qb-fields").forEach(fs => {
+      const on = fs.dataset.type === type;
+      fs.hidden = !on;
+      fs.disabled = !on;   // disabled fieldsets skip validation and FormData
+    });
+    const title = dialogForm.elements.title;
+    if (!title.dataset.touched) title.value = type === "weather" ? "Weather" : "Cash Bids";
+    if (!dialogForm.elements.span.dataset.touched) {
+      dialogForm.elements.span.value = type === "weather" ? "4" : "6";
+    }
+  }
+
+  dialogForm.elements.type.addEventListener("change", e => setDialogType(e.target.value));
+  dialogForm.elements.title.addEventListener("input", e => { e.target.dataset.touched = "1"; });
+  dialogForm.elements.span.addEventListener("change", e => { e.target.dataset.touched = "1"; });
+
+  dialog.querySelector(".qb-geo").addEventListener("click", () => {
+    if (!navigator.geolocation) {
+      geoStatus.textContent = "Location isn't available in this browser.";
+      return;
+    }
+    geoStatus.textContent = "Finding you…";
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        dialogForm.elements.lat.value = pos.coords.latitude.toFixed(4);
+        dialogForm.elements.lon.value = pos.coords.longitude.toFixed(4);
+        geoStatus.textContent = "Location filled in.";
+      },
+      err => {
+        geoStatus.textContent = err.code === 1
+          ? "Location permission was denied."
+          : "Couldn't get your location.";
+      },
+      { timeout: 10000, maximumAge: 600000 }
+    );
+  });
+
   function openAddDialog() {
-    const form = dialog.querySelector("form");
+    const form = dialogForm;
     form.reset();
+    delete form.elements.title.dataset.touched;
+    delete form.elements.span.dataset.touched;
+    geoStatus.textContent = "";
+    setDialogType("cashbids");
     if (typeof dialog.showModal === "function") {
       dialog.showModal();
     } else {
@@ -594,8 +700,24 @@
   dialog.querySelector("form").addEventListener("submit", e => {
     const form = e.target;
     const data = new FormData(form);
+
+    if (data.get("type") === "weather") {
+      addPanel({
+        id: newId(),
+        type: "weather",
+        title: String(data.get("title") || "Weather").trim(),
+        lat: Number(Number(data.get("lat")).toFixed(4)),
+        lon: Number(Number(data.get("lon")).toFixed(4)),
+        units: data.get("units") === "si" ? "si" : "us",
+        span: Number(data.get("span")) || 4,
+        height: 560
+      });
+      return;
+    }
+
     addPanel({
       id: newId(),
+      type: "cashbids",
       title: String(data.get("title") || "Cash Bids").trim(),
       json: String(data.get("json") || DEFAULT_FEED).trim(),
       span: Number(data.get("span")) || 6,
