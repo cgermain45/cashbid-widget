@@ -1,0 +1,208 @@
+/* ============================================================
+   EMBED — camera streams, video, web pages, custom HTML
+   Standalone embeds are 16:9 by default; set a height (or
+   --sge-height) to change it.
+   ============================================================ */
+
+.sge {
+  --sge-bg: #000000;
+  --sge-panel: #121821;
+  --sge-panel-2: #171f2a;
+  --sge-text: #e6edf3;
+  --sge-muted: #8b98a9;
+  --sge-line: #263142;
+  --sge-accent: #f5b301;
+  --sge-accent-ink: #1a1300;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: var(--sge-height, auto);
+  aspect-ratio: var(--sge-aspect, 16 / 9);
+  overflow: hidden;
+  background: var(--sge-bg);
+  color: var(--sge-text);
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.sge *,
+.sge *::before,
+.sge *::after {
+  box-sizing: border-box;
+}
+
+.sge-theme-light {
+  --sge-panel: #ffffff;
+  --sge-panel-2: #f5f7fa;
+  --sge-text: #111827;
+  --sge-muted: #5b6675;
+  --sge-line: #e2e7ee;
+  --sge-accent: #2563eb;
+  --sge-accent-ink: #ffffff;
+}
+
+/* ---------- media ---------- */
+
+.sge-media {
+  display: block;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  background: var(--sge-bg);
+}
+
+.sge-fit-contain { object-fit: contain; }
+.sge-fit-cover { object-fit: cover; }
+
+.sge-frame {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.sge-status {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, .65);
+  border-radius: 999px;
+}
+
+.sge-msg {
+  margin: auto;
+  max-width: 460px;
+  padding: 20px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--sge-muted);
+}
+
+.sge-msg.sge-error {
+  color: #f87171;
+}
+
+.sge-msg code,
+.sge-note code {
+  font-size: 12px;
+}
+
+/* ---------- editor ---------- */
+
+.sge-editor {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--sge-panel);
+  color: var(--sge-text);
+  font-size: 13px;
+}
+
+.sge-ed-head {
+  font-size: 14px;
+}
+
+.sge-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--sge-muted);
+}
+
+.sge-editor input,
+.sge-editor select,
+.sge-editor textarea {
+  font: inherit;
+  font-size: 14px;
+  color: var(--sge-text);
+  background: var(--sge-panel-2);
+  border: 1px solid var(--sge-line);
+  border-radius: 6px;
+  padding: 7px 9px;
+}
+
+.sge-editor textarea {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  resize: vertical;
+  min-height: 110px;
+}
+
+.sge-editor :is(input, select, textarea):focus-visible {
+  outline: none;
+  border-color: var(--sge-accent);
+}
+
+.sge-short {
+  max-width: 300px;
+}
+
+.sge-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--sge-muted);
+  overflow-wrap: anywhere;
+}
+
+.sge-note strong {
+  color: var(--sge-text);
+}
+
+.sge-warn {
+  color: #f59e0b;
+}
+
+.sge-ed-msg {
+  margin: 0;
+  color: #f87171;
+}
+
+.sge-ed-msg:empty {
+  display: none;
+}
+
+.sge-ed-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.sge-btn {
+  font: inherit;
+  font-size: 13px;
+  color: var(--sge-text);
+  background: var(--sge-panel-2);
+  border: 1px solid var(--sge-line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.sge-btn:hover,
+.sge-btn:focus-visible {
+  border-color: var(--sge-accent);
+  outline: none;
+}
+
+.sge-save {
+  background: var(--sge-accent);
+  border-color: var(--sge-accent);
+  color: var(--sge-accent-ink);
+  font-weight: 700;
+}

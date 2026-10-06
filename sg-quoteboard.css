@@ -1382,3 +1382,20 @@ html[data-theme="light"] .qb-root .sgw .sgw-i-moon {
   border: 0;
   border-radius: 0 0 var(--qb-radius) var(--qb-radius);
 }
+
+/* ============================================================
+   VIDEO / WEB EMBED PANEL (sg-embed.css)
+   ============================================================ */
+
+.qb-root .sge {
+  --sge-panel: var(--qb-panel);
+  --sge-panel-2: var(--qb-panel-2);
+  --sge-text: var(--qb-text);
+  --sge-muted: var(--qb-muted);
+  --sge-line: var(--qb-line);
+  --sge-accent: var(--qb-accent);
+  --sge-accent-ink: var(--qb-accent-ink);
+  height: 100%;
+  aspect-ratio: auto;
+  border-radius: 0 0 var(--qb-radius) var(--qb-radius);
+}

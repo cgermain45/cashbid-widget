@@ -9,6 +9,13 @@
      SHARED HELPERS (pure — no instance state)
      ============================================================ */
 
+  /* Feed text is data, never markup: escape it before it goes into HTML */
+  function sg_escape(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
   function sg_parseNum(v) {
     if (v === null || v === undefined) return NaN;
     if (typeof v === "number") return v;
@@ -321,8 +328,8 @@
           "beforeend",
           `
           <label>
-            <input type="checkbox" class="sg-loc-check" value="${loc.name}" checked>
-            ${loc.name}
+            <input type="checkbox" class="sg-loc-check" value="${sg_escape(loc.name)}" checked>
+            ${sg_escape(loc.name)}
           </label>
           `
         );
@@ -347,8 +354,8 @@
           "beforeend",
           `
           <label>
-            <input type="checkbox" class="sg-com-check" value="${com}" checked>
-            ${com}
+            <input type="checkbox" class="sg-com-check" value="${sg_escape(com)}" checked>
+            ${sg_escape(com)}
           </label>
           `
         );
@@ -979,24 +986,24 @@
 
             switch (col.key) {
               case "commodity":
-                value = rowName(row) || "-";
+                value = sg_escape(rowName(row) || "-");
                 break;
               case "delivery":
-                value = sg_formatDelivery(bid.delivery_start_raw, bid.delivery_end_raw);
+                value = sg_escape(sg_formatDelivery(bid.delivery_start_raw, bid.delivery_end_raw));
                 break;
               case "futures":
-                value = bid.futures || "-";
+                value = sg_escape(bid.futures || "-");
                 break;
               case "basis":
-                value = bid.basis || "-";
+                value = sg_escape(bid.basis || "-");
                 break;
               case "cashprice":
-                value = sg_roundCashPrice(bid);
+                value = sg_escape(sg_roundCashPrice(bid));
                 break;
               case "change":
                 value = changeArrow
-                  ? `<span class="sg-change-arrow" aria-label="${changeLabel}">${changeArrow}</span> ${changeVal}`
-                  : changeVal;
+                  ? `<span class="sg-change-arrow" aria-label="${changeLabel}">${changeArrow}</span> ${sg_escape(changeVal)}`
+                  : sg_escape(changeVal);
                 extraClass = changeClass;
                 break;
             }
@@ -1040,7 +1047,7 @@
           "beforeend",
           `
           <div class="sg-card">
-            <div class="sg-location">${group.title}</div>
+            <div class="sg-location">${sg_escape(group.title)}</div>
             <table>
               <thead><tr>${headerRow}</tr></thead>
               <tbody>${rows}</tbody>
