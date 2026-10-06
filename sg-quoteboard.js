@@ -6,6 +6,7 @@
      Weather panels need sg-weather.js (window.SGWeather) — optional.
      Futures panels need sg-futures.js (window.SGFutures) — optional.
      Announcement panels need sg-announce.js (window.SGAnnounce) — optional.
+     Video / web embed panels need sg-embed.js (window.SGEmbed) — optional.
      ============================================================ */
 
   const root = document.getElementById("sg-quoteboard");
@@ -131,6 +132,9 @@
       switch (panelType(p)) {
         case "weather": return Object.assign(base, { lat: p.lat, lon: p.lon, units: p.units });
         case "futures": return Object.assign(base, { symbols: p.symbols, format: p.format });
+        case "embed": return Object.assign(base, {
+          mode: p.mode || "auto", url: p.url || "", html: p.html || "", fit: p.fit || "contain", every: p.every || 2
+        });
         case "announce": return Object.assign(base, {
           source: p.source || "local", feed: p.feed || "", slides: p.slides || [], interval: p.interval || 10
         });
@@ -140,7 +144,7 @@
   }
 
   function panelType(p) {
-    return ["weather", "futures", "announce"].includes(p.type) ? p.type : "cashbids";
+    return ["weather", "futures", "announce", "embed"].includes(p.type) ? p.type : "cashbids";
   }
 
   function savePrefs() {
@@ -283,6 +287,7 @@
             ${window.SGFutures ? `<option value="futures">Futures quotes (Barchart OnDemand)</option>` : ""}
             ${window.SGWeather ? `<option value="weather">Weather (National Weather Service)</option>` : ""}
             ${window.SGAnnounce ? `<option value="announce">Announcements / ads</option>` : ""}
+            ${window.SGEmbed ? `<option value="embed">Video / web embed (cameras, pages, HTML)</option>` : ""}
           </select>
         </label>
         <label>
@@ -315,6 +320,10 @@
             </select>
           </label>
           <p class="qb-hint">Comma-separated contracts, e.g. ZCZ26 = Corn Dec 26. You'll enter your Barchart OnDemand API key inside the panel.</p>
+        </fieldset>
+
+        <fieldset class="qb-fields" data-type="embed" hidden disabled>
+          <p class="qb-hint">Show a live camera (e.g. the truck scale), a video or .m3u8 stream, a web page, or custom HTML. Paste the address in the panel and it works out the type. Web pages and HTML run in a sandbox so they can't reach the board's saved settings.</p>
         </fieldset>
 
         <fieldset class="qb-fields" data-type="announce" hidden disabled>
@@ -381,6 +390,7 @@
         ${panelType(p) === "cashbids" ? `<button type="button" class="qb-icon-btn qb-panel-setup" title="Change feed URL" aria-label="Change cash bid feed URL for ${escapeHtml(p.title)}">🔗</button>` : ""}
         ${panelType(p) === "weather" ? `<button type="button" class="qb-icon-btn qb-panel-setup" title="Change location" aria-label="Change weather location for ${escapeHtml(p.title)}">📍</button>` : ""}
         ${panelType(p) === "announce" ? `<button type="button" class="qb-icon-btn qb-panel-setup" title="Edit announcements" aria-label="Edit ${escapeHtml(p.title)}">✏️</button>` : ""}
+        ${panelType(p) === "embed" ? `<button type="button" class="qb-icon-btn qb-panel-setup" title="Edit what this panel shows" aria-label="Edit ${escapeHtml(p.title)}">✏️</button>` : ""}
         <button type="button" class="qb-icon-btn qb-panel-refresh" title="Refresh panel" aria-label="Refresh ${escapeHtml(p.title)}">⟳</button>
         <button type="button" class="qb-icon-btn qb-panel-close" title="Remove panel" aria-label="Remove ${escapeHtml(p.title)}">×</button>
       </header>
@@ -446,6 +456,31 @@
         saveLayout();
         loadFuturesTicker();
       });
+    } else if (panelType(p) === "embed") {
+      api = window.SGEmbed
+        ? window.SGEmbed.mount(widgetEl, {
+            mode: p.mode,
+            url: p.url,
+            html: p.html,
+            fit: p.fit,
+            every: p.every,
+            editable: true,
+            theme: "dark"
+          })
+        : null;
+      if (!api) widgetEl.innerHTML = `<p class="qb-missing">Embeds need sg-embed.js on this page.</p>`;
+
+      if (api && !widgetEl.dataset.qbConfigBound) {
+        widgetEl.dataset.qbConfigBound = "1";
+        widgetEl.addEventListener("sg:config", e => {
+          Object.assign(p, e.detail);
+          saveLayout();
+        });
+      }
+      if (api && p.openEditor) {
+        delete p.openEditor;
+        api.edit();
+      }
     } else if (panelType(p) === "announce") {
       api = window.SGAnnounce
         ? window.SGAnnounce.mount(widgetEl, {
@@ -723,7 +758,7 @@
       }
     } else if (e.target.closest(".qb-panel-setup") && !prefs.locked) {
       const p = panelById(panel.dataset.id);
-      if (p && panelType(p) === "announce") {
+      if (p && (panelType(p) === "announce" || panelType(p) === "embed")) {
         const api = instances.get(p.id);
         if (api && api.edit) api.edit();
       } else if (p) {
@@ -1281,10 +1316,10 @@
     });
     const title = dialogForm.elements.title;
     if (!title.dataset.touched) {
-      title.value = { weather: "Weather", futures: "Futures", announce: "Announcements" }[type] || "Cash Bids";
+      title.value = { weather: "Weather", futures: "Futures", announce: "Announcements", embed: "Live Camera" }[type] || "Cash Bids";
     }
     if (!dialogForm.elements.span.dataset.touched) {
-      dialogForm.elements.span.value = { weather: "4", futures: "6", announce: "6" }[type] || "6";
+      dialogForm.elements.span.value = { weather: "4", futures: "6", announce: "6", embed: "6" }[type] || "6";
     }
   }
 
@@ -1313,6 +1348,21 @@
   dialog.querySelector("form").addEventListener("submit", e => {
     const form = e.target;
     const data = new FormData(form);
+
+    if (data.get("type") === "embed") {
+      addPanel({
+        id: newId(),
+        type: "embed",
+        title: String(data.get("title") || "Live Camera").trim(),
+        mode: "auto",
+        url: "",
+        html: "",
+        fit: "contain",
+        span: Number(data.get("span")) || 6,
+        openEditor: true
+      });
+      return;
+    }
 
     if (data.get("type") === "announce") {
       addPanel({

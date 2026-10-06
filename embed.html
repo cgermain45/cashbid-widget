@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video &amp; Web Embed</title>
+
+  <link rel="stylesheet" href="sg-embed.css">
+
+  <style>
+    :root {
+      --page-bg: #f4f6f9;
+      --page-text: #1f2937;
+      --page-muted: #5b6675;
+      --code-bg: #0f141b;
+      --code-text: #e6edf3;
+      --card-bg: #ffffff;
+      --card-line: #dde3ea;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page-bg: #0b0f14;
+        --page-text: #e6edf3;
+        --page-muted: #8b98a9;
+        --code-bg: #121821;
+        --code-text: #e6edf3;
+        --card-bg: #121821;
+        --card-line: #263142;
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--page-bg);
+      color: var(--page-text);
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 16px 64px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 26px;
+    }
+
+    .lede {
+      margin: 0 0 32px;
+      color: var(--page-muted);
+    }
+
+    section {
+      margin-bottom: 40px;
+    }
+
+    h2 {
+      font-size: 17px;
+      margin: 0 0 4px;
+    }
+
+    section > p {
+      margin: 0 0 12px;
+      color: var(--page-muted);
+      font-size: 14px;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--card-line);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--page-muted);
+    }
+
+    code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 760px) {
+      .demo-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+
+  <h1>Video &amp; Web Embed</h1>
+  <p class="lede">Show a live camera (like a truck scale), a video or HLS stream, a web page, or custom HTML. Paste an address and the widget works out how to display it.</p>
+
+  <section>
+    <h2>Camera or stream</h2>
+    <p>Most IP cameras have a "live view" address. Paste it as <code>data-url</code>. This example uses a still image from this site, refreshed every few seconds, the same way a camera snapshot address works.</p>
+    <div class="demo-grid">
+      <div data-sg-embed data-url="examples/harvest-ad.svg" data-mode="snapshot" data-every="5"></div>
+      <div data-sg-embed>
+        <template>
+          <div style="height:100%;display:grid;place-items:center;background:#0f1a14;color:#e6edf3;font:600 20px system-ui;text-align:center">
+            <div>
+              <div style="font-size:13px;opacity:.7">CUSTOM HTML (SANDBOXED)</div>
+              <div id="t" style="font:700 44px ui-monospace,monospace;color:#f5b301">--:--:--</div>
+              <div id="s" style="font-size:12px;opacity:.7"></div>
+            </div>
+          </div>
+          <script>
+            setInterval(function(){ document.getElementById('t').textContent = new Date().toLocaleTimeString(); }, 1000);
+            var ok; try { ok = typeof parent.document; } catch (e) { ok = 'blocked'; }
+            var ls; try { ls = localStorage.length; } catch (e) { ls = 'blocked'; }
+            document.getElementById('s').textContent = 'Page access: ' + ok + ' · Site storage: ' + ls;
+          </script>
+        </template>
+      </div>
+    </div>
+<pre><code>&lt;!-- IP camera live view (MJPEG) --&gt;
+&lt;div data-sg-embed data-url="https://camera.example.com/mjpg/video.mjpg"&gt;&lt;/div&gt;
+
+&lt;!-- HLS live stream --&gt;
+&lt;div data-sg-embed data-url="https://stream.example.com/scale/index.m3u8"&gt;&lt;/div&gt;
+
+&lt;!-- Custom HTML, e.g. a vendor's embed code --&gt;
+&lt;div data-sg-embed&gt;
+  &lt;template&gt; …your HTML… &lt;/template&gt;
+&lt;/div&gt;
+
+&lt;script src="https://cgermain45.github.io/cashbid-widget/sg-embed.js"&gt;&lt;/script&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>What the URL is detected as</h2>
+    <table>
+      <thead>
+        <tr><th>Address looks like</th><th>Shown as</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>…/video.mjpg</code>, <code>…mjpeg…</code>, <code>video.cgi</code>, <code>axis-cgi/mjpg</code>, <code>action=stream</code></td><td>Live camera stream (MJPEG)</td></tr>
+        <tr><td><code>….jpg</code>, <code>….png</code>, <code>snapshot</code>, <code>image.cgi</code></td><td>Still image, refreshed (default every 2 s)</td></tr>
+        <tr><td><code>….mp4</code>, <code>….webm</code></td><td>Video (muted, looping)</td></tr>
+        <tr><td><code>….m3u8</code></td><td>HLS live stream</td></tr>
+        <tr><td>YouTube links</td><td>YouTube player (muted autoplay)</td></tr>
+        <tr><td>Anything else</td><td>Web page in a sandboxed frame</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:12px">Set <code>data-mode</code> (<code>mjpeg</code>, <code>snapshot</code>, <code>video</code>, <code>hls</code>, <code>page</code>, <code>html</code>) to override the guess, <code>data-fit="cover"</code> to fill the box, and <code>--sge-height</code> or a height to size it (16:9 by default).</p>
+  </section>
+
+  <section>
+    <h2>Things to know</h2>
+    <p><strong>Use https addresses.</strong> Browsers block <code>http://</code> video and pages inside a secure site. Many on-site cameras are <code>http://192.168…</code>; use the camera's https address or the vendor's cloud viewer.</p>
+    <p><strong>RTSP doesn't play in browsers.</strong> If a camera only offers <code>rtsp://</code>, use an NVR or cloud service that provides HLS or a web viewer.</p>
+    <p><strong>Some sites block embedding.</strong> If a web page stays blank, that site doesn't allow being shown inside another page. Look for its "embed" or "share" link.</p>
+    <p><strong>Sandboxed.</strong> Web pages and custom HTML can show content and run their own scripts, but can't read this site's saved data (like a futures API key), change the page, open pop-ups or redirect the screen. Use a view-only camera login.</p>
+  </section>
+
+</main>
+
+<script src="sg-embed.js"></script>
+</body>
+</html>

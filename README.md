@@ -5,10 +5,11 @@ Cash bid embed widgets.
 |---|---|---|
 | [`example.html`](example.html) | `sg-cashbid-widget.js/.css` | Production cash bid table |
 | [`index.html`](index.html) | `sg-cashbid-widget-dev.js/.css` | Dev cash bid table (sorting, grouping, settings, rounding) |
-| [`cashbidquoteboard.html`](cashbidquoteboard.html) | `sg-quoteboard.js/.css` + dev widget, ticker, futures, weather | Drag-and-drop quote screen of cash bid, futures, weather and announcement panels |
+| [`cashbidquoteboard.html`](cashbidquoteboard.html) | `sg-quoteboard.js/.css` + dev widget, ticker, futures, weather | Drag-and-drop quote screen of cash bid, futures, weather, announcement and video/web embed panels |
 | [`ticker.html`](ticker.html) | `sg-ticker.js/.css` | Standalone scrolling price ticker — demo, embed code and options |
 | [`futures.html`](futures.html) | `sg-futures.js/.css` | Futures quotes table and ticker (Barchart OnDemand API key) — demo, embed code and options |
 | [`announce.html`](announce.html) | `sg-announce.js/.css` | Announcements / ads widget (rotating slides, images, hosted JSON) — demo, format and options |
+| [`embed.html`](embed.html) | `sg-embed.js/.css` | Video & web embed: IP cameras (MJPEG/snapshots), MP4, HLS, web pages, sandboxed custom HTML |
 | [`weather.html`](weather.html) | `sg-weather.js/.css` | Standalone National Weather Service widget (U.S., no API key) — demo, embed code and options |
 
 ## Ticker embed
