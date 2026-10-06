@@ -6,6 +6,13 @@
   const widget = document.getElementById("sg-cashbid-widget");
   if (!widget) return;
 
+  /* Feed text is data, never markup: escape it before it goes into HTML */
+  function sg_escape(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
   const sg_url =
     widget.dataset.json ||
     "https://stonegrain.agricharts.com/inc/cashbids/cashbids-json.php";
@@ -172,9 +179,9 @@
           <input
             type="checkbox"
             class="sg-loc-check"
-            value="${loc.name}"
+            value="${sg_escape(loc.name)}"
             checked>
-          ${loc.name}
+          ${sg_escape(loc.name)}
         </label>
         `
       );
@@ -205,9 +212,9 @@
             <input
               type="checkbox"
               class="sg-com-check"
-              value="${com}"
+              value="${sg_escape(com)}"
               checked>
-            ${com}
+            ${sg_escape(com)}
           </label>
           `
         );
@@ -287,16 +294,16 @@
 
           rows += `
             <tr>
-              <td>${bid.name}</td>
-              <td>${sg_formatDelivery(
+              <td>${sg_escape(bid.name)}</td>
+              <td>${sg_escape(sg_formatDelivery(
                 bid.delivery_start_raw,
                 bid.delivery_end_raw
-              )}</td>
-              <td>${bid.futures || "-"}</td>
-              <td>${bid.basis || "-"}</td>
-              <td>${bid.cashprice || "-"}</td>
+              ))}</td>
+              <td>${sg_escape(bid.futures || "-")}</td>
+              <td>${sg_escape(bid.basis || "-")}</td>
+              <td>${sg_escape(bid.cashprice || "-")}</td>
               <td class="${changeClass}">
-                ${changeVal}
+                ${sg_escape(changeVal)}
               </td>
             </tr>
           `;
@@ -314,7 +321,7 @@
         <div class="sg-card">
 
           <div class="sg-location">
-            ${loc.name}
+            ${sg_escape(loc.name)}
           </div>
 
           <table>
