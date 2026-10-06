@@ -93,10 +93,40 @@
         if (m) id = m[1];
       }
     }
-    return id && /^[\w-]{6,}$/.test(id)
-      ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&playsinline=1&rel=0`
-      : null;
+    if (!id || !/^[\w-]{6,}$/.test(id)) return null;
+
+    // Muted autoplay so a display starts playing on its own; keep the
+    // embed options someone chose (controls, start, loop…)
+    const out = new URL(`https://www.youtube.com/embed/${id}`);
+    ["controls", "start", "end", "loop", "playlist", "cc_load_policy", "hl"].forEach(k => {
+      if (u.searchParams.has(k)) out.searchParams.set(k, u.searchParams.get(k));
+    });
+    out.searchParams.set("autoplay", "1");
+    out.searchParams.set("mute", "1");
+    out.searchParams.set("playsinline", "1");
+    out.searchParams.set("rel", "0");
+    return out.href;
   }
+
+  /* An embed code that is just one <iframe> (YouTube, camera viewers…)
+     → its src. Parsed with DOMParser, which never runs scripts. */
+  function singleIframeSrc(html) {
+    const text = String(html || "").trim();
+    if (!/^<iframe[\s>]/i.test(text)) return null;
+    try {
+      const doc = new DOMParser().parseFromString(text, "text/html");
+      const nodes = [...doc.body.childNodes].filter(n => !(n.nodeType === 3 && !n.textContent.trim()));
+      if (nodes.length !== 1 || nodes[0].nodeName !== "IFRAME") return null;
+      const src = nodes[0].getAttribute("src");
+      return absUrl(src) ? absUrl(src).href : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /* Third-party players (YouTube etc.) need a referrer and these
+     permissions; the sandbox still blocks pop-ups and tab navigation. */
+  const FRAME_ALLOW = "accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture; web-share";
 
   function detectMode(url) {
     const u = absUrl(url);
@@ -196,6 +226,20 @@
           message(editable ? "No HTML yet. Use ✏️ to add some." : "Nothing to show.");
           return;
         }
+
+        // A plain <iframe> embed code is shown directly (nesting it inside
+        // the HTML sandbox would stop players like YouTube from working)
+        const iframeSrc = singleIframeSrc(state.html);
+        if (iframeSrc) {
+          if (insecure(iframeSrc)) {
+            message(`That embed code uses an <code>http://</code> address, which browsers block on secure (https) sites.`, true);
+            fired(false);
+            return;
+          }
+          showPage(new URL(iframeSrc));
+          return;
+        }
+
         el.innerHTML = "";
         const frame = document.createElement("iframe");
         frame.className = "sge-frame";
@@ -313,19 +357,25 @@ start();
         return;
       }
 
-      // Web page: sandboxed iframe. Same-site pages don't get allow-same-origin,
-      // so they can't escape the sandbox and read this site's storage.
+      showPage(u);
+    }
+
+    /* Web page in a sandboxed iframe. Same-site pages don't get
+       allow-same-origin, so they can't escape the sandbox and read this
+       site's storage. Cross-site pages keep their own origin (required
+       by players like YouTube) — they can't see this site either. */
+    function showPage(u) {
       const yt = youtubeEmbed(u);
-      const pageUrl = yt || href;
+      const pageUrl = yt || u.href;
       const sameSite = new URL(pageUrl).origin === location.origin;
       el.innerHTML = "";
       const frame = document.createElement("iframe");
       frame.className = "sge-frame";
-      frame.title = "Embedded page";
+      frame.title = yt ? "YouTube video" : "Embedded page";
       frame.setAttribute("sandbox", "allow-scripts allow-forms allow-presentation" + (sameSite ? "" : " allow-same-origin"));
-      frame.setAttribute("referrerpolicy", "no-referrer");
-      frame.setAttribute("allow", "autoplay; fullscreen; picture-in-picture");
-      frame.setAttribute("loading", "lazy");
+      frame.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+      frame.setAttribute("allow", FRAME_ALLOW);
+      frame.setAttribute("allowfullscreen", "");
       frame.src = pageUrl;
       frame.addEventListener("load", () => fired(true));
       el.appendChild(frame);
@@ -356,7 +406,7 @@ start();
               <label>HTML
                 <textarea name="html" rows="7" spellcheck="false" placeholder="&lt;iframe src=&quot;https://…&quot;&gt;&lt;/iframe&gt;">${escapeHtml(draft.html)}</textarea>
               </label>
-              <p class="sge-note">Runs in a sandbox: it can show content and run its own scripts, but it can't see this page, its saved settings (like your API key), open pop-ups or redirect the screen.</p>
+              <p class="sge-note">A single <code>&lt;iframe&gt;</code> embed code (YouTube, camera viewers) is shown directly as a web page. Anything else runs in a sandbox: it can show content and run its own scripts, but it can't see this page, its saved settings (like your API key), open pop-ups or redirect the screen.</p>
             ` : `
               <label>Address (URL)
                 <input name="url" type="url" spellcheck="false" placeholder="https://camera.example.com/mjpg/video.mjpg" value="${escapeHtml(draft.url)}">
@@ -375,7 +425,7 @@ start();
                   <option value="cover"${draft.fit === "cover" ? " selected" : ""}>Fill the panel (may crop edges)</option>
                 </select>
               </label>
-              <p class="sge-note">Tips: use a view-only camera account. If a web page stays blank, that site doesn't allow being embedded — try its "embed" or "share" link.</p>
+              <p class="sge-note">Tips: you can also paste a YouTube or camera <code>&lt;iframe&gt;</code> embed code here. Use a view-only camera account. If a web page stays blank, that site doesn't allow being embedded — try its "embed" or "share" link.</p>
             `}
 
             <p class="sge-ed-msg" role="alert"></p>
@@ -428,6 +478,12 @@ start();
           e.preventDefault();
           capture(form);
           msg.textContent = "";
+
+          // An <iframe> embed code pasted into the address box → use its src
+          if (draft.mode !== "html" && /^<iframe[\s>]/i.test(draft.url)) {
+            const src = singleIframeSrc(draft.url);
+            if (src) draft.url = src;
+          }
 
           if (draft.mode === "html") {
             if (draft.html.length > 50000) { msg.textContent = "That HTML is too long (50,000 characters max)."; return; }
