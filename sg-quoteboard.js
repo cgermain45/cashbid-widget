@@ -397,7 +397,9 @@
       <div class="qb-panel-body">
         <div class="qb-widget"></div>
       </div>
-      <div class="qb-resize" title="Drag to resize" aria-hidden="true"></div>
+      <div class="qb-resize-edge qb-resize-e" data-axis="x" title="Drag to change width" aria-hidden="true"></div>
+      <div class="qb-resize-edge qb-resize-s" data-axis="y" title="Drag to change height" aria-hidden="true"></div>
+      <div class="qb-resize" data-axis="xy" title="Drag to resize" aria-hidden="true"></div>
     `;
 
     // Seed a new panel's grouping before the widget reads its settings
@@ -977,12 +979,12 @@
 
     const head = e.target.closest(".qb-panel-head");
     if (head && !e.target.closest("button, [contenteditable='true']")) {
-      startDrag(e, head.closest(".qb-panel"));
+      startDrag(e, head.closest(".qb-panel"), head);
       return;
     }
 
-    const handle = e.target.closest(".qb-resize");
-    if (handle) startResize(e, handle.closest(".qb-panel"));
+    const handle = e.target.closest(".qb-resize, .qb-resize-edge");
+    if (handle) startResize(e, handle.closest(".qb-panel"), handle);
   });
 
   function boardPoint(ev) {
@@ -990,23 +992,79 @@
     return { x: ev.clientX - r.left + board.scrollLeft, y: ev.clientY - r.top + board.scrollTop };
   }
 
-  function startDrag(e, panel) {
+  /* Keep receiving pointer events for the whole gesture, even over
+     iframes (video/web panels) or outside the window. */
+  function capturePointer(el, e) {
+    try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+  }
+
+  function samePosition(a, b) {
+    return a && b && a.x === b.x && a.y === b.y;
+  }
+
+  /* Where a panel would land (center, in board px) for a given order */
+  function landingCenter(order, id) {
+    const r = pack(order).pos.get(id);
+    const { pad, gap, colU, rowU } = metrics;
+    return {
+      x: pad + r.x * colU + (r.w * colU - gap) / 2,
+      y: pad + r.y * rowU + (r.h * rowU - gap) / 2
+    };
+  }
+
+  function startDrag(e, panel, handle) {
     const id = panel.dataset.id;
     const start = boardPoint(e);
     const startLeft = parseFloat(panel.style.left) || 0;
     const startTop = parseFloat(panel.style.top) || 0;
+    const width = parseFloat(panel.style.width) || panel.offsetWidth;
+    const height = parseFloat(panel.style.height) || panel.offsetHeight;
     let placeholder = null;
     let dragging = false;
-    let lastMove = "";
+    let frame = 0;
+    let lastPt = start;
 
     function begin() {
       dragging = true;
+      capturePointer(handle, e);
       placeholder = document.createElement("div");
       placeholder.className = "qb-placeholder";
       board.appendChild(placeholder);
       panel.classList.add("qb-dragging");
       root.classList.add("qb-is-dragging");
       relayout(id);
+    }
+
+    /* Choose the order whose landing slot is nearest the dragged panel.
+       Only switch when it's clearly better than the current slot, so
+       panels don't flip back and forth while you move. */
+    function evaluate() {
+      frame = 0;
+      if (!metrics) return;
+      const cx = startLeft + (lastPt.x - start.x) + width / 2;
+      const cy = startTop + (lastPt.y - start.y) + height / 2;
+      const dragged = panelById(id);
+      const rest = layout.filter(p => p.id !== id);
+      const dist = order => {
+        const c = landingCenter(order, id);
+        return Math.hypot(c.x - cx, c.y - cy);
+      };
+
+      const current = dist(layout);
+      let best = null;
+      let bestDist = Infinity;
+      for (let k = 0; k <= rest.length; k++) {
+        const order = rest.slice(0, k).concat([dragged], rest.slice(k));
+        const d = dist(order);
+        if (d < bestDist) { bestDist = d; best = order; }
+      }
+
+      const deadZone = Math.max(36, Math.min(metrics.colU, metrics.rowU) * 2);
+      if (best && bestDist < current - deadZone
+          && best.map(p => p.id).join() !== layout.map(p => p.id).join()) {
+        layout = best;
+        relayout(id);
+      }
     }
 
     function onMove(ev) {
@@ -1016,38 +1074,17 @@
         begin();
       }
       ev.preventDefault();
+      lastPt = pt;
       panel.style.left = startLeft + (pt.x - start.x) + "px";
       panel.style.top = startTop + (pt.y - start.y) + "px";
-
-      // Hit-test against slot positions (not the animating DOM)
-      let overId = null;
-      lastRects.forEach((r, otherId) => {
-        if (otherId !== id && pt.x >= r.left && pt.x <= r.left + r.width && pt.y >= r.top && pt.y <= r.top + r.height) {
-          overId = otherId;
-        }
-      });
-      if (!overId) return;
-
-      const r = lastRects.get(overId);
-      const sameRow = pt.y > r.top && pt.y < r.top + r.height;
-      const after = sameRow ? pt.x > r.left + r.width / 2 : pt.y > r.top + r.height / 2;
-      const move = overId + (after ? ">" : "<");
-      if (move === lastMove) return;
-      lastMove = move;
-
-      const dragged = panelById(id);
-      const rest = layout.filter(p => p.id !== id);
-      const idx = rest.findIndex(p => p.id === overId) + (after ? 1 : 0);
-      rest.splice(idx, 0, dragged);
-      if (rest.map(p => p.id).join() === layout.map(p => p.id).join()) return;
-      layout = rest;
-      relayout(id);
+      if (!frame) frame = requestAnimationFrame(evaluate);
     }
 
     function onUp() {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
       document.removeEventListener("pointercancel", onUp);
+      cancelAnimationFrame(frame);
       if (!dragging) return;
 
       placeholder.remove();
@@ -1064,44 +1101,51 @@
   }
 
   /* ============================================================
-     RESIZE — snaps to grid columns and rows. In fit mode a panel
-     can't grow past the bottom of the screen.
+     RESIZE — corner (width + height), right edge (width) or bottom
+     edge (height). Snaps to the grid. The panel being resized stays
+     where it is; only neighbors reflow. In fit mode it can't grow
+     past the bottom of the screen.
      ============================================================ */
 
-  function startResize(e, panel) {
+  function startResize(e, panel, handle) {
     e.preventDefault();
     if (!metrics) return;
+    capturePointer(handle, e);
+
+    const axis = handle.dataset.axis || "xy";
     const p = panelById(panel.dataset.id);
     const start = boardPoint(e);
     const startW = parseFloat(panel.style.width) || 0;
     const startH = parseFloat(panel.style.height) || 0;
     const { colU, rowU, gap } = metrics;
     const limit = prefs.fit ? Math.max(FIT_ROWS, pack(layout).bottom) : MAX_SCROLL_ROWS;
+    const home = pack(layout).pos.get(p.id);
 
     panel.classList.add("qb-resizing");
-    root.classList.add("qb-is-resizing");
+    root.classList.add("qb-is-resizing", "qb-resizing-" + axis);
 
-    function fits(span, rows) {
+    function ok(span, rows) {
       const trial = layout.map(x => (x.id === p.id ? { id: x.id, span, rows } : x));
-      return pack(trial).bottom <= limit;
+      const res = pack(trial);
+      return res.bottom <= limit && samePosition(res.pos.get(p.id), home);
     }
 
     function onMove(ev) {
       const pt = boardPoint(ev);
-      let span = Math.round((startW + (pt.x - start.x) + gap) / colU);
-      let rows = Math.round((startH + (pt.y - start.y) + gap) / rowU);
-      span = Math.max(MIN_SPAN, Math.min(GRID_COLS, span));
-      rows = Math.max(MIN_ROWS, Math.min(limit, rows));
-
-      // Shrink the height until it fits; if even that fails keep the old width
-      while (rows > MIN_ROWS && !fits(span, rows)) rows--;
-      if (!fits(span, rows)) {
-        span = p.span;
-        while (rows > MIN_ROWS && !fits(span, rows)) rows--;
-        if (!fits(span, rows)) return;
-      }
-
+      let span = p.span;
+      let rows = p.rows;
+      if (axis !== "y") span = Math.round((startW + (pt.x - start.x) + gap) / colU);
+      if (axis !== "x") rows = Math.round((startH + (pt.y - start.y) + gap) / rowU);
+      span = Math.max(MIN_SPAN, Math.min(GRID_COLS - home.x, span));
+      rows = Math.max(MIN_ROWS, Math.min(limit - home.y, rows));
       if (span === p.span && rows === p.rows) return;
+
+      // Take the change if it fits; otherwise keep whichever dimension does
+      if (ok(span, rows)) { /* both */ }
+      else if (span !== p.span && ok(span, p.rows)) rows = p.rows;
+      else if (rows !== p.rows && ok(p.span, rows)) span = p.span;
+      else return;
+
       p.span = span;
       p.rows = rows;
       relayout();
@@ -1112,7 +1156,7 @@
       document.removeEventListener("pointerup", onUp);
       document.removeEventListener("pointercancel", onUp);
       panel.classList.remove("qb-resizing");
-      root.classList.remove("qb-is-resizing");
+      root.classList.remove("qb-is-resizing", "qb-resizing-" + axis);
       saveLayout();
     }
 
