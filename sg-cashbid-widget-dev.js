@@ -424,8 +424,8 @@
         { id: "mon_d", label: "Mon D" },
         { id: "month_d", label: "Month D" },
         { id: "mon_d_y", label: "Mon D, YYYY" },
-        { id: "month_only", label: "Delivery Month (Full) — December 2026" },
-        { id: "month_only_short", label: "Delivery Month (Short) — Dec 26" }
+        { id: "month_only", label: "Delivery Month (Full)" },
+        { id: "month_only_short", label: "Delivery Month (Short)" }
       ];
 
       const savedFormat = store.get("sg-date-format") || "mdy_slash";
