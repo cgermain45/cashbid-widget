@@ -424,8 +424,8 @@
         { id: "mon_d", label: "Mon D" },
         { id: "month_d", label: "Month D" },
         { id: "mon_d_y", label: "Mon D, YYYY" },
-        { id: "month_only", label: "Delivery Month (Full)" },
-        { id: "month_only_short", label: "Delivery Month (Short)" }
+        { id: "month_only", label: "Delivery Month (Full) — December 2026" },
+        { id: "month_only_short", label: "Delivery Month (Short) — Dec 26" }
       ];
 
       const savedFormat = store.get("sg-date-format") || "mdy_slash";
@@ -878,18 +878,16 @@
           case "mon_d_y":
             return `${monthShort[m]} ${day}, ${y}`;
 
-          case "month_only": {
-            const sm = s.getMonth();
-            const em = e.getMonth();
-            if (sm === em) return monthNames[sm];
-            return `${monthNames[sm]} - ${monthNames[em]}`;
-          }
-
+          // Delivery month with the year: "December 2026" / "Dec 26".
+          // A period spanning months shows both ends ("Dec 26 - Jan 27").
+          case "month_only":
           case "month_only_short": {
-            const sm = s.getMonth();
-            const em = e.getMonth();
-            if (sm === em) return monthShort[sm];
-            return `${monthShort[sm]} - ${monthShort[em]}`;
+            const full = fmtSetting === "month_only";
+            const label = dt => full
+              ? `${monthNames[dt.getMonth()]} ${dt.getFullYear()}`
+              : `${monthShort[dt.getMonth()]} ${String(dt.getFullYear()).slice(-2)}`;
+            const sameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
+            return sameMonth ? label(s) : `${label(s)} - ${label(e)}`;
           }
 
           default:

@@ -1399,3 +1399,69 @@ html[data-theme="light"] .qb-root .sgw .sgw-i-moon {
   aspect-ratio: auto;
   border-radius: 0 0 var(--qb-radius) var(--qb-radius);
 }
+
+/* ============================================================
+   DRAG / RESIZE comfort
+   ============================================================ */
+
+/* Iframes (video, web pages) would swallow the pointer mid-gesture */
+.qb-is-dragging iframe,
+.qb-is-resizing iframe {
+  pointer-events: none;
+}
+
+/* Edge handles: right edge = width, bottom edge = height */
+.qb-resize-edge {
+  position: absolute;
+  z-index: 2;
+  touch-action: none;
+}
+
+.qb-resize-e {
+  top: 40px;
+  right: -4px;
+  bottom: 18px;
+  width: 9px;
+  cursor: ew-resize;
+}
+
+.qb-resize-s {
+  left: 12px;
+  right: 18px;
+  bottom: -4px;
+  height: 9px;
+  cursor: ns-resize;
+}
+
+.qb-resize-edge::after {
+  content: "";
+  position: absolute;
+  border-radius: 2px;
+  background: var(--qb-accent);
+  opacity: 0;
+  transition: opacity .15s;
+}
+
+.qb-resize-e::after { top: 30%; bottom: 30%; left: 3px; width: 3px; }
+.qb-resize-s::after { left: 35%; right: 35%; top: 3px; height: 3px; }
+
+.qb-resize-edge:hover::after,
+.qb-panel.qb-resizing .qb-resize-edge::after {
+  opacity: .8;
+}
+
+.qb-resize {
+  z-index: 3;
+  width: 20px;
+  height: 20px;
+}
+
+.qb-is-resizing.qb-resizing-x,
+.qb-is-resizing.qb-resizing-x * { cursor: ew-resize !important; }
+.qb-is-resizing.qb-resizing-y,
+.qb-is-resizing.qb-resizing-y * { cursor: ns-resize !important; }
+
+.qb-locked .qb-resize-edge,
+.qb-root.qb-stacked .qb-resize-edge {
+  display: none;
+}
