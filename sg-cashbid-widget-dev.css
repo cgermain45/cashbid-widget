@@ -680,3 +680,131 @@
   gap: 6px;
   margin-top: 10px;
 }
+
+/* Tile editing: "Edit tiles" toggle, × in the corner, drag to rearrange */
+
+.sg-filter-section.sg-edit-section {
+  width: auto;
+  margin-left: auto;
+}
+
+.sg-filter-section.sg-edit-section + .sg-settings-section {
+  margin-left: 0;
+}
+
+.sg-edit-tiles {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: -4px;
+  padding: 5px 12px;
+  border: 1px solid #d0d7e2;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+}
+
+.sg-edit-tiles.sg-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.sg-tile {
+  position: relative;
+}
+
+.sg-tile-x {
+  display: none;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #e3b4b4;
+  border-radius: 50%;
+  background: #fff;
+  color: #c62828;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sg-tile-x:hover,
+.sg-tile-x:focus-visible {
+  background: #c62828;
+  border-color: #c62828;
+  color: #fff;
+  outline: none;
+}
+
+.sg-tiles-editing .sg-tile-x {
+  display: block;
+}
+
+.sg-tiles-editing .sg-tile {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  outline: 1px dashed #b6c2d4;
+  outline-offset: 2px;
+}
+
+.sg-tile.sg-tile-dragging {
+  cursor: grabbing;
+  opacity: .85;
+  outline: 2px solid #2563eb;
+  box-shadow: 0 10px 24px rgba(0,0,0,.18);
+  transform: scale(1.03);
+  z-index: 2;
+}
+
+.sg-tile-drag-active,
+.sg-tile-drag-active * {
+  cursor: grabbing !important;
+}
+
+/* Multi-add checklist */
+
+.sg-tile-choices {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.sg-tile-choice-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+  padding: 6px 0 2px;
+}
+
+.sg-filter-content label.sg-tile-choice {
+  padding: 2px 0 2px 4px;
+  font-size: 13px;
+}
+
+.sg-tile-choice-added {
+  color: #6b7280;
+}
+
+.sg-filter-content .sg-tile-choice-added {
+  color: #6b7280;
+  cursor: default;
+}
+
+@media (max-width: 600px) {
+  .sg-filter-section.sg-edit-section {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+/* Keep long names clear of the × */
+.sg-tiles-editing .sg-tile-head {
+  padding-right: 26px;
+}

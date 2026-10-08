@@ -32,7 +32,8 @@
        data-format, data-show-name (true), data-apikey, data-feed.
 
      JavaScript:
-       SGFutures.mount(el, opts)        → { refresh, destroy, getSymbols, setSymbols }
+       SGFutures.mount(el, opts)        → { refresh, destroy, getSymbols, setSymbols, setEditable }
+       With data-editable, rows can be dragged by their ⠿ grip to reorder.
        SGFutures.mountTicker(el, opts)  → { refresh, destroy }
        SGFutures.setApiKey(key, remember) / SGFutures.signOut()
        SGFutures.frontMonths("ZC", 2)   → ["ZCZ26", "ZCH27"]
@@ -547,6 +548,7 @@
     function renderTable(withFlash) {
       const wrap = el.querySelector(".sgf-table-wrap");
       if (!wrap || !quotes) return;
+      if (rowDrag && rowDrag.started) { renderPending = true; return; }
 
       if (!cfg.symbols.length) {
         wrap.innerHTML = `<p class="sgf-status">${cfg.editable
@@ -557,6 +559,9 @@
 
       const cols = columns.map(k => COLUMNS.find(c => c.key === k));
       const next = new Map();
+      const dragCell = cfg.editable
+        ? `<td class="sgf-col-drag"><span class="sgf-grip" title="Drag to reorder" aria-hidden="true">⠿</span></td>`
+        : "";
       const removeCell = sym => cfg.editable
         ? `<td class="sgf-col-remove"><button type="button" class="sgf-remove" data-symbol="${escapeHtml(sym)}"
               title="Remove ${escapeHtml(sym)}" aria-label="Remove ${escapeHtml(sym)}">×</button></td>`
@@ -565,7 +570,7 @@
       const rows = cfg.symbols.map(sym => {
         const q = findQuote(quotes, sym);
         if (!q) {
-          return `<tr class="sgf-missing"><td colspan="${cols.length}">${escapeHtml(sym)} — ${pending.has(sym) ? "loading…" : "no data"}</td>${removeCell(sym)}</tr>`;
+          return `<tr class="sgf-missing" data-symbol="${escapeHtml(sym)}">${dragCell}<td colspan="${cols.length}">${escapeHtml(sym)} — ${pending.has(sym) ? "loading…" : "no data"}</td>${removeCell(sym)}</tr>`;
         }
         const last = lastPrice(q);
         next.set(sym, last);
@@ -573,7 +578,7 @@
         const flash = withFlash && before !== undefined && before !== null && last !== null && before !== last
           ? (last > before ? "up" : "down") : "";
         const fmt = makeFormatter(q, format);
-        return `<tr>${cols.map(c =>
+        return `<tr data-symbol="${escapeHtml(sym)}">${dragCell}${cols.map(c =>
           `<td class="sgf-col-${c.key}${c.num ? " sgf-num" : ""}">${cell(c, q, fmt, flash)}</td>`).join("")}${removeCell(sym)}</tr>`;
       }).join("");
 
@@ -581,7 +586,7 @@
 
       wrap.innerHTML = `
         <table>
-          <thead><tr>${cols.map(c =>
+          <thead><tr>${cfg.editable ? `<th class="sgf-col-drag"><span class="sgf-sr">Reorder</span></th>` : ""}${cols.map(c =>
             `<th class="sgf-col-${c.key}${c.num ? " sgf-num" : ""}"${c.title ? ` title="${escapeHtml(c.title)}"` : ""}>${c.label}</th>`).join("")}${
             cfg.editable ? `<th class="sgf-col-remove"><span class="sgf-sr">Remove</span></th>` : ""}</tr></thead>
           <tbody>${rows}</tbody>
@@ -680,7 +685,7 @@
 
     el.addEventListener("click", e => {
       const btn = e.target.closest(".sgf-remove");
-      if (!btn || !cfg.editable) return;
+      if (!btn || !cfg.editable || locked) return;
       const sym = btn.dataset.symbol;
       setSymbols(cfg.symbols.filter(x => x !== sym));
       const msg = el.querySelector(".sgf-add-msg");
@@ -689,6 +694,65 @@
         msg.classList.remove("sgf-add-error");
       }
     });
+
+    /* Drag a row by its grip to reorder the symbols */
+    let rowDrag = null;
+    let renderPending = false;
+    let locked = false;
+
+    el.addEventListener("pointerdown", e => {
+      const grip = e.target.closest(".sgf-col-drag");
+      const row = grip && grip.closest("tbody tr");
+      if (!row || !cfg.editable || locked || e.button !== 0) return;
+      e.preventDefault();
+      rowDrag = { row, y: e.clientY, started: false, id: e.pointerId };
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    });
+
+    el.addEventListener("pointermove", e => {
+      const d = rowDrag;
+      if (!d || e.pointerId !== d.id) return;
+      if (!d.started) {
+        if (Math.abs(e.clientY - d.y) < 5) return;
+        d.started = true;
+        d.row.classList.add("sgf-row-dragging");
+        el.classList.add("sgf-drag-active");
+      }
+      const rows = [...d.row.parentNode.children];
+      const target = rows.find(r => {
+        if (r === d.row) return false;
+        const b = r.getBoundingClientRect();
+        return e.clientY >= b.top && e.clientY < b.bottom;
+      });
+      if (!target) return;
+      if (rows.indexOf(target) > rows.indexOf(d.row)) target.after(d.row);
+      else target.before(d.row);
+    });
+
+    function endRowDrag(e, cancelled) {
+      const d = rowDrag;
+      if (!d || e.pointerId !== d.id) return;
+      rowDrag = null;
+      el.classList.remove("sgf-drag-active");
+      d.row.classList.remove("sgf-row-dragging");
+      if (!d.started) return;
+      const order = [...d.row.parentNode.children].map(r => r.dataset.symbol).filter(Boolean);
+      if (!cancelled && order.join() !== cfg.symbols.join()) {
+        renderPending = false;
+        setSymbols(order);
+      } else if (cancelled || renderPending) {
+        renderPending = false;
+        renderTable(false);
+      }
+    }
+    el.addEventListener("pointerup", e => endRowDrag(e, false));
+    el.addEventListener("pointercancel", e => endRowDrag(e, true));
+
+    /* A host page (the quoteboard's Lock) can hide add/remove/reorder */
+    function setEditable(on) {
+      locked = !on;
+      el.classList.toggle("sgf-locked", locked);
+    }
 
     window.addEventListener(AUTH_EVENT, onAuthChange);
     document.addEventListener("click", onDocumentClick);
@@ -710,7 +774,8 @@
       refresh: load,
       destroy,
       getSymbols: () => cfg.symbols.slice(),
-      setSymbols
+      setSymbols,
+      setEditable
     };
     el.sgFutures = api;
     return api;

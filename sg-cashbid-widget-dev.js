@@ -62,7 +62,7 @@
     if (widget.sgCashBid) return widget.sgCashBid;
 
     const opts = Object.assign(
-      { storagePrefix: "", autoRefresh: true, json: null },
+      { storagePrefix: "", autoRefresh: true, json: null, editToggle: true },
       options || {}
     );
 
@@ -189,6 +189,12 @@
           <div class="sg-filter-commodities sg-filter-content"></div>
         </div>
 
+        ${opts.editToggle ? `
+        <div class="sg-filter-section sg-tiles-only sg-edit-section">
+          <button type="button" class="sg-edit-tiles" aria-pressed="false"
+                  title="Drag tiles to rearrange them, × to remove">Edit tiles</button>
+        </div>` : ""}
+
         <div class="sg-filter-section sg-settings-section">
           <button type="button" class="sg-settings-btn sg-collapsible"
                   data-target="sg-settings-panel"
@@ -249,6 +255,27 @@
     });
 
     applyViewClass();
+
+    /* Tile editing: drag to rearrange, × to remove. Standalone widgets
+       get an "Edit tiles" button; a host page (the quoteboard) can drive
+       it with api.setEditable() instead. */
+    let sg_editing = false;
+    let sg_tileDrag = null;
+    let sg_renderPending = false;
+
+    function setEditing(on) {
+      sg_editing = !!on;
+      widget.classList.toggle("sg-tiles-editing", sg_editing);
+      const btn = widget.querySelector(".sg-edit-tiles");
+      if (btn) {
+        btn.textContent = sg_editing ? "Done" : "Edit tiles";
+        btn.setAttribute("aria-pressed", String(sg_editing));
+        btn.classList.toggle("sg-active", sg_editing);
+      }
+    }
+
+    const editBtn = widget.querySelector(".sg-edit-tiles");
+    if (editBtn) editBtn.addEventListener("click", () => setEditing(!sg_editing));
 
     /* ============================================================
        FETCH DATA
@@ -619,6 +646,67 @@
       scheduleRender();
     }
 
+    /* The list the tiles on screen come from (picks, or the default set) */
+    function effectivePicks() {
+      return sg_tilePicks && sg_tilePicks.length ? sg_tilePicks : defaultPicks();
+    }
+
+    tablesContainer.addEventListener("click", e => {
+      const x = e.target.closest(".sg-tile-x");
+      if (!x || !sg_editing) return;
+      const next = effectivePicks().slice();
+      next.splice(Number(x.dataset.i), 1);
+      saveTilePicks(next);
+    });
+
+    /* Pointer drag: the tile moves through the grid as you go and the
+       new order is saved on release */
+    tablesContainer.addEventListener("pointerdown", e => {
+      const tile = e.target.closest(".sg-tile");
+      if (!tile || !sg_editing || e.button !== 0 || e.target.closest(".sg-tile-x")) return;
+      e.preventDefault();
+      sg_tileDrag = { tile, x: e.clientX, y: e.clientY, started: false, id: e.pointerId };
+      try { tablesContainer.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    });
+
+    tablesContainer.addEventListener("pointermove", e => {
+      const d = sg_tileDrag;
+      if (!d || e.pointerId !== d.id) return;
+      if (!d.started) {
+        if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
+        d.started = true;
+        d.tile.classList.add("sg-tile-dragging");
+        widget.classList.add("sg-tile-drag-active");
+      }
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      const target = under && under.closest(".sg-tile");
+      if (!target || target === d.tile || target.parentNode !== d.tile.parentNode) return;
+      const all = [...d.tile.parentNode.children];
+      if (all.indexOf(target) > all.indexOf(d.tile)) target.after(d.tile);
+      else target.before(d.tile);
+    });
+
+    function endTileDrag(e, cancelled) {
+      const d = sg_tileDrag;
+      if (!d || e.pointerId !== d.id) return;
+      sg_tileDrag = null;
+      widget.classList.remove("sg-tile-drag-active");
+      d.tile.classList.remove("sg-tile-dragging");
+      if (d.started && !cancelled) {
+        const base = effectivePicks();
+        const order = [...tablesContainer.querySelectorAll(".sg-tile")].map(t => base[Number(t.dataset.i)]);
+        // Picks that aren't on screen (not in the feed) keep their place at the end
+        const shown = new Set(order);
+        saveTilePicks(order.concat(base.filter(p => !shown.has(p))));
+      } else if (sg_renderPending) {
+        scheduleRender();
+      } else if (d.started) {
+        renderTables();
+      }
+    }
+    tablesContainer.addEventListener("pointerup", e => endTileDrag(e, false));
+    tablesContainer.addEventListener("pointercancel", e => endTileDrag(e, true));
+
     function embedSnippet() {
       const attrs = [`data-view="tiles"`];
       if (sg_tilePicks && sg_tilePicks.length) {
@@ -631,14 +719,47 @@
     function buildTilePanel() {
       const picks = sg_tilePicks || [];
       const locs = sg_locations.map(l => l.name);
-      const addLoc = tilesContainer.dataset.addLoc && locs.includes(tilesContainer.dataset.addLoc)
-        ? tilesContainer.dataset.addLoc : locs[0];
-      const coms = [...new Set(
-        ((sg_locations.find(l => l.name === addLoc) || {}).cashbids || []).map(b => b.name)
-      )];
-      const addCom = tilesContainer.dataset.addCom && coms.includes(tilesContainer.dataset.addCom)
-        ? tilesContainer.dataset.addCom : coms[0];
-      const periods = addLoc && addCom ? deliveriesFor(addLoc, addCom) : [];
+      const ALL = "\u0000all";
+      const addLoc = tilesContainer.dataset.addLoc === ALL || locs.includes(tilesContainer.dataset.addLoc)
+        ? tilesContainer.dataset.addLoc : (locs.length > 1 ? ALL : locs[0]);
+      const pickId = p => p.start !== undefined
+        ? JSON.stringify([p.loc, p.com, "x", p.start, p.end])
+        : JSON.stringify([p.loc, p.com, "n", p.nearby]);
+      const have = new Set(picks.map(pickId));
+
+      /* Every bid that can be added, grouped by location + commodity */
+      const choices = [];
+      (addLoc === ALL ? locs : [addLoc]).forEach(loc => {
+        const seen = [];
+        ((sg_locations.find(l => l.name === loc) || {}).cashbids || []).forEach(b => {
+          if (!seen.includes(b.name)) seen.push(b.name);
+        });
+        seen.forEach(com => {
+          const periods = deliveriesFor(loc, com);
+          const options = [];
+          for (let n = 1; n <= Math.min(periods.length, 3); n++) {
+            options.push({ pick: { loc, com, nearby: n }, label: `${ordinal(n)} (rolls forward)` });
+          }
+          periods.forEach(r => options.push({
+            pick: { loc, com, start: r.bid.delivery_start_raw, end: r.bid.delivery_end_raw },
+            label: sg_formatDelivery(r.bid.delivery_start_raw, r.bid.delivery_end_raw)
+          }));
+          choices.push({ title: addLoc === ALL ? `${com} · ${loc}` : com, options });
+        });
+      });
+      const flat = [];
+      const checklist = choices.map(g => `
+        <div class="sg-tile-choice-group">
+          <div class="sg-tile-choice-title">${sg_escape(g.title)}</div>
+          ${g.options.map(o => {
+            const i = flat.push(o.pick) - 1;
+            const added = have.has(pickId(o.pick));
+            return `<label class="sg-tile-choice${added ? " sg-tile-choice-added" : ""}">
+              <input type="checkbox" class="sg-tile-choice-check" data-c="${i}"
+                     ${added ? "checked disabled" : ""}>
+              ${sg_escape(o.label)}${added ? ` <em>added</em>` : ""}</label>`;
+          }).join("")}
+        </div>`).join("");
 
       const rows = picks.length
         ? picks.map((p, i) => `
@@ -654,30 +775,16 @@
             </div>`).join("")
         : `<div class="sg-sort-empty">No tiles picked — showing the nearest delivery of every commodity.</div>`;
 
-      const nearbyCount = Math.max(1, Math.min(periods.length, 3));
-      const periodOptions =
-        `<optgroup label="Rolls forward automatically">${
-          Array.from({ length: nearbyCount }, (_, k) =>
-            `<option value="n:${k + 1}">${ordinal(k + 1)} delivery</option>`).join("")
-        }</optgroup>` +
-        (periods.length
-          ? `<optgroup label="Specific delivery">${periods.map((r, k) =>
-              `<option value="x:${k}">${sg_escape(sg_formatDelivery(r.bid.delivery_start_raw, r.bid.delivery_end_raw))}</option>`
-            ).join("")}</optgroup>`
-          : "");
-
       tilesContainer.innerHTML = `
         <div class="sg-tile-picks">${rows}</div>
         <div class="sg-tile-add">
-          <div class="sg-tile-add-title">Add a tile</div>
+          <div class="sg-tile-add-title">Add tiles</div>
           <select class="sg-tile-add-loc" aria-label="Location">
+            ${locs.length > 1 ? `<option value="${ALL}" ${addLoc === ALL ? "selected" : ""}>All locations</option>` : ""}
             ${locs.map(l => `<option value="${sg_escape(l)}" ${l === addLoc ? "selected" : ""}>${sg_escape(l)}</option>`).join("")}
           </select>
-          <select class="sg-tile-add-com" aria-label="Commodity">
-            ${coms.map(c => `<option value="${sg_escape(c)}" ${c === addCom ? "selected" : ""}>${sg_escape(c)}</option>`).join("")}
-          </select>
-          <select class="sg-tile-add-when" aria-label="Delivery">${periodOptions}</select>
-          <button type="button" class="sg-reset-btn sg-tile-add-btn" ${addLoc && addCom ? "" : "disabled"}>Add tile</button>
+          <div class="sg-tile-choices">${checklist || `<div class="sg-sort-empty">No bids in the feed.</div>`}</div>
+          <button type="button" class="sg-reset-btn sg-tile-add-btn" disabled>Add selected</button>
         </div>
         <div class="sg-tile-sizes" role="radiogroup" aria-label="Tile size">
           <span>Size</span>
@@ -693,28 +800,22 @@
       `;
 
       const locSel = tilesContainer.querySelector(".sg-tile-add-loc");
-      const comSel = tilesContainer.querySelector(".sg-tile-add-com");
       locSel.addEventListener("change", () => {
         tilesContainer.dataset.addLoc = locSel.value;
-        delete tilesContainer.dataset.addCom;
-        buildTilePanel();
-      });
-      comSel.addEventListener("change", () => {
-        tilesContainer.dataset.addCom = comSel.value;
         buildTilePanel();
       });
 
-      tilesContainer.querySelector(".sg-tile-add-btn").addEventListener("click", () => {
-        const when = tilesContainer.querySelector(".sg-tile-add-when").value;
-        let pick;
-        if (when.startsWith("x:")) {
-          const r = periods[Number(when.slice(2))];
-          if (!r) return;
-          pick = { loc: addLoc, com: addCom, start: r.bid.delivery_start_raw, end: r.bid.delivery_end_raw };
-        } else {
-          pick = { loc: addLoc, com: addCom, nearby: Number(when.slice(2)) || 1 };
-        }
-        saveTilePicks(picks.concat([pick]));
+      const addBtn = tilesContainer.querySelector(".sg-tile-add-btn");
+      const chosen = () => [...tilesContainer.querySelectorAll(".sg-tile-choice-check:checked:not(:disabled)")];
+      tilesContainer.querySelectorAll(".sg-tile-choice-check").forEach(cb =>
+        cb.addEventListener("change", () => {
+          const n = chosen().length;
+          addBtn.disabled = n === 0;
+          addBtn.textContent = n ? `Add ${n} selected` : "Add selected";
+        }));
+      addBtn.addEventListener("click", () => {
+        const added = chosen().map(cb => flat[Number(cb.dataset.c)]).filter(Boolean);
+        if (added.length) saveTilePicks(picks.concat(added));
       });
 
       tilesContainer.querySelectorAll(".sg-tile-btn").forEach(btn =>
@@ -1209,9 +1310,9 @@
        ============================================================ */
 
     function renderTiles() {
-      const picks = sg_tilePicks && sg_tilePicks.length ? sg_tilePicks : defaultPicks();
+      const picks = effectivePicks();
 
-      const tiles = picks.map(resolvePick).filter(Boolean).map(row => {
+      const tiles = picks.map((p, i) => ({ row: resolvePick(p), i })).filter(t => t.row).map(({ row, i }) => {
         const bid = row.bid;
         const price = sg_roundCashPrice(bid);
         const shownPrice = /^-?\d/.test(String(price)) ? `$${price}` : price;
@@ -1223,7 +1324,9 @@
         ].join("");
 
         return `
-          <div class="sg-tile${flash ? ` sg-flash-${flash}` : ""}">
+          <div class="sg-tile${flash ? ` sg-flash-${flash}` : ""}" data-i="${i}">
+            <button type="button" class="sg-tile-x" data-i="${i}" title="Remove tile"
+                    aria-label="Remove ${sg_escape(bid.name)} at ${sg_escape(row.loc.name)}">×</button>
             <div class="sg-tile-head">
               <span class="sg-tile-com">${sg_escape(bid.name)}</span>
               <span class="sg-tile-loc">${sg_escape(row.loc.name)}</span>
@@ -1244,6 +1347,11 @@
     }
 
     function renderTables() {
+      if (sg_tileDrag && sg_tileDrag.started) {
+        sg_renderPending = true;
+        return;
+      }
+      sg_renderPending = false;
       tablesContainer.innerHTML = "";
       if (!sg_lastUpdated) return;
       if (sg_view === "tiles") return renderTiles();
@@ -1421,7 +1529,7 @@
       delete widget.sgCashBid;
     }
 
-    const api = { el: widget, refresh: loadData, destroy };
+    const api = { el: widget, refresh: loadData, destroy, setEditable: setEditing };
     widget.sgCashBid = api;
     return api;
   }
