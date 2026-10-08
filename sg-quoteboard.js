@@ -126,7 +126,7 @@
 
 
   function saveLayout() {
-    // groupBy is only a seed for new panels; the widget owns it afterwards
+    // groupBy and view are only seeds for new panels; the widget owns them afterwards
     writeJSON(LAYOUT_KEY, layout.map(p => {
       const base = { id: p.id, type: panelType(p), title: p.title, span: p.span, rows: p.rows };
       switch (panelType(p)) {
@@ -297,6 +297,13 @@
 
         <fieldset class="qb-fields" data-type="cashbids">
           <label>
+            Show As
+            <select name="view">
+              <option value="table">Table</option>
+              <option value="tiles">Tiles (pick bids in the panel's ⚙ menu)</option>
+            </select>
+          </label>
+          <label>
             Group By
             <select name="groupBy">
               <option value="location">Location</option>
@@ -406,6 +413,10 @@
     if (p.groupBy) {
       try { localStorage.setItem(PANEL_PREFIX(p.id) + "sg-group-by", p.groupBy); } catch (e) { /* ignore */ }
       delete p.groupBy;
+    }
+    if (p.view) {
+      try { localStorage.setItem(PANEL_PREFIX(p.id) + "sg-view", p.view); } catch (e) { /* ignore */ }
+      delete p.view;
     }
 
     const widgetEl = el.querySelector(".qb-widget");
@@ -1454,7 +1465,8 @@
       title: String(data.get("title") || "Cash Bids").trim(),
       json: rememberedFeed(),
       span: Number(data.get("span")) || 6,
-      groupBy: data.get("groupBy") === "commodity" ? "commodity" : "location"
+      groupBy: data.get("groupBy") === "commodity" ? "commodity" : "location",
+      view: data.get("view") === "tiles" ? "tiles" : "table"
     });
   });
 
