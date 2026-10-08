@@ -1015,6 +1015,42 @@ html[data-theme="light"] .qb-root .sgw .sgw-i-moon {
   color: var(--qb-down);
 }
 
+.qb-root .sg-tile-x {
+  background: var(--qb-panel);
+  border-color: var(--qb-line);
+  color: var(--qb-down);
+}
+
+.qb-root .sg-tile-x:hover,
+.qb-root .sg-tile-x:focus-visible {
+  background: var(--qb-down);
+  border-color: var(--qb-down);
+  color: #fff;
+}
+
+.qb-root .sg-tiles-editing .sg-tile {
+  outline-color: var(--qb-line);
+}
+
+.qb-root .sg-tile.sg-tile-dragging {
+  outline-color: var(--qb-accent);
+  box-shadow: var(--qb-shadow);
+}
+
+.qb-root .sg-tile-choices,
+.qb-root .sg-tile-add-loc {
+  border-color: var(--qb-line);
+}
+
+.qb-root .sg-tile-choice-title {
+  color: var(--qb-text);
+}
+
+.qb-root .sg-tile-choice-added,
+.qb-root .sg-filter-content .sg-tile-choice-added {
+  color: var(--qb-muted);
+}
+
 /* ============================================================
    NARROW SCREENS — one column, panels stack
    ============================================================ */

@@ -212,6 +212,48 @@
   outline: none;
 }
 
+/* Drag grip to reorder rows */
+.sgf .sgf-col-drag {
+  width: 1%;
+  padding-left: 6px;
+  padding-right: 0;
+  color: var(--sgf-muted);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.sgf-grip {
+  display: inline-block;
+  padding: 0 4px;
+  font-size: 14px;
+  line-height: 1;
+  opacity: .45;
+}
+
+.sgf tr:hover .sgf-grip {
+  opacity: 1;
+}
+
+.sgf tr.sgf-row-dragging {
+  outline: 2px solid var(--sgf-accent, #2563eb);
+  outline-offset: -2px;
+  background: var(--sgf-head, rgba(0, 0, 0, .04));
+}
+
+.sgf-drag-active,
+.sgf-drag-active * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+/* Host page locked editing (quoteboard Lock) */
+.sgf.sgf-locked .sgf-add,
+.sgf.sgf-locked .sgf-col-drag,
+.sgf.sgf-locked .sgf-col-remove {
+  display: none;
+}
+
 /* ---------- settings menu ---------- */
 
 .sgf-menu {

@@ -462,6 +462,7 @@
           })
         : null;
       if (!api) widgetEl.innerHTML = `<p class="qb-missing">Futures need sg-futures.js on this page.</p>`;
+      if (api && api.setEditable) api.setEditable(!prefs.locked);
 
       // Symbols added/removed in the panel are saved with the layout
       widgetEl.addEventListener("sg:symbols", e => {
@@ -534,8 +535,10 @@
       api = window.SGCashBid.mount(widgetEl, {
         json: p.json,
         storagePrefix: PANEL_PREFIX(p.id),
-        autoRefresh: false
+        autoRefresh: false,
+        editToggle: false   // the board's Lock button turns tile editing on and off
       });
+      if (api && api.setEditable) api.setEditable(!prefs.locked);
     }
     if (api) instances.set(p.id, api);
   }
@@ -1278,6 +1281,7 @@
     intervalSelect.value = String(prefs.refreshMin);
 
     root.classList.toggle("qb-locked", prefs.locked);
+    instances.forEach(api => { if (api.setEditable) api.setEditable(!prefs.locked); });
     fitBtn.setAttribute("aria-pressed", String(prefs.fit));
     fitBtn.querySelector(".qb-btn-label").textContent = prefs.fit ? "Fit to screen" : "Scrolling";
     lockBtn.setAttribute("aria-pressed", String(prefs.locked));

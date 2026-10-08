@@ -28,7 +28,8 @@ The dev widget (`sg-cashbid-widget-dev.js`) can show bids as tiles instead of a 
 - `"nearby": 1` is the nearest delivery (2 = second nearest…). It rolls forward on its own when a delivery period drops off the feed.
 - `"start"` / `"end"` pin one exact delivery period, written as the feed writes it.
 - With no `data-tiles`, the widget shows the nearest delivery of every commodity at every location.
-- Viewers can switch Table/Tiles, add, remove and reorder tiles, and change the size in the ⚙ menu. Their choices are saved in their browser and override the site defaults until they press "Reset to site default".
+- Viewers can switch Table/Tiles, add tiles (tick several and "Add selected"), remove and reorder them, and change the size in the ⚙ menu.
+- **Edit tiles** (next to ⚙) turns on dragging tiles to rearrange them and an × on each tile to remove it. On the quoteboard this follows the board's Lock button instead: unlocked = editable. Their choices are saved in their browser and override the site defaults until they press "Reset to site default".
 - "Copy embed settings" in the ⚙ → Tiles menu copies the attributes for the current picks, so a site owner can set the tiles up by clicking and paste the result into the embed.
 - On the quoteboard, choose **Show As → Tiles** when adding a Cash Bids panel, or switch any cash bid panel in its ⚙ menu.
 
@@ -60,4 +61,4 @@ See `weather.html` for all options. Data from [api.weather.gov](https://www.weat
 <script src="https://cgermain45.github.io/cashbid-widget/sg-futures.js"></script>
 ```
 
-Viewers enter a Barchart OnDemand API key inside the widget; it's kept in their browser (session, or "remember on this device") and isn't part of the embed code. A site owner can build a key in with `data-apikey`, but it's then visible in the page source. See `futures.html` for all options.
+With `data-editable="true"`, viewers can add and remove symbols and drag rows by their ⠿ grip to reorder them (on the quoteboard, while the board is unlocked). Viewers enter a Barchart OnDemand API key inside the widget; it's kept in their browser (session, or "remember on this device") and isn't part of the embed code. A site owner can build a key in with `data-apikey`, but it's then visible in the page source. See `futures.html` for all options.
