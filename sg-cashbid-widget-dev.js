@@ -125,13 +125,55 @@
     let sg_lastRefreshFailed = false;
 
     /* ============================================================
+       VIEW + TILES STATE
+       The site owner sets defaults (data-view, data-tiles,
+       data-tile-size or mount options); a viewer's own choices in the
+       settings menu are saved in their browser and win until reset.
+       ============================================================ */
+
+    const ownerView = String(opts.view || widget.dataset.view || "").toLowerCase() === "tiles"
+      ? "tiles" : "table";
+    const ownerTiles = sanitizePicks(parseJSON(opts.tiles !== undefined ? opts.tiles : widget.dataset.tiles));
+    const ownerTileSize = validTileSize(opts.tileSize || widget.dataset.tileSize) || "m";
+
+    let sg_view = store.get("sg-view") === "tiles" || store.get("sg-view") === "table"
+      ? store.get("sg-view") : ownerView;
+    let sg_tilePicks = sanitizePicks(parseJSON(store.get("sg-tiles"))) || ownerTiles;
+    let sg_tileSize = validTileSize(store.get("sg-tile-size")) || ownerTileSize;
+
+    function parseJSON(v) {
+      if (v === null || v === undefined || v === "") return null;
+      if (typeof v !== "string") return v;
+      try { return JSON.parse(v); } catch (e) { return null; }
+    }
+
+    function validTileSize(v) {
+      return ["s", "m", "l"].includes(v) ? v : null;
+    }
+
+    /* A pick is { loc, com, nearby: n } (the nth-nearest delivery, which
+       rolls forward on its own) or { loc, com, start, end } (one exact
+       delivery period, as written in the feed). */
+    function sanitizePicks(list) {
+      if (!Array.isArray(list)) return null;
+      return list.map(p => {
+        if (!p || typeof p.loc !== "string" || typeof p.com !== "string") return null;
+        if (typeof p.start === "string" && typeof p.end === "string") {
+          return { loc: p.loc, com: p.com, start: p.start, end: p.end };
+        }
+        const n = Math.floor(Number(p.nearby) || 1);
+        return { loc: p.loc, com: p.com, nearby: Math.min(Math.max(n, 1), 12) };
+      }).filter(Boolean);
+    }
+
+    /* ============================================================
        WIDGET SHELL
        ============================================================ */
 
     widget.innerHTML = `
       <div class="sg-filter-bar">
 
-        <div class="sg-filter-section">
+        <div class="sg-filter-section sg-table-only">
           <div class="sg-filter-title sg-collapsible"
                data-target="sg-filter-locations">
             Locations
@@ -139,7 +181,7 @@
           <div class="sg-filter-locations sg-filter-content"></div>
         </div>
 
-        <div class="sg-filter-section">
+        <div class="sg-filter-section sg-table-only">
           <div class="sg-filter-title sg-collapsible"
                data-target="sg-filter-commodities">
             Commodities
@@ -158,14 +200,22 @@
 
           <div class="sg-settings-panel sg-filter-content sg-settings-panel">
             <details class="sg-setting" open>
+              <summary>View</summary>
+              <div class="sg-filter-view sg-setting-body"></div>
+            </details>
+            <details class="sg-setting sg-tiles-only" open>
+              <summary>Tiles</summary>
+              <div class="sg-filter-tiles sg-setting-body"></div>
+            </details>
+            <details class="sg-setting sg-table-only" open>
               <summary>Group By</summary>
               <div class="sg-filter-groupby sg-setting-body"></div>
             </details>
-            <details class="sg-setting">
+            <details class="sg-setting sg-table-only">
               <summary>Columns</summary>
               <div class="sg-filter-columns sg-setting-body"></div>
             </details>
-            <details class="sg-setting">
+            <details class="sg-setting sg-table-only">
               <summary>Sort</summary>
               <div class="sg-filter-sort sg-setting-body"></div>
             </details>
@@ -189,12 +239,16 @@
     const dateContainer = widget.querySelector(".sg-filter-dateformat");
     const sortContainer = widget.querySelector(".sg-filter-sort");
     const groupContainer = widget.querySelector(".sg-filter-groupby");
+    const viewContainer = widget.querySelector(".sg-filter-view");
+    const tilesContainer = widget.querySelector(".sg-filter-tiles");
     const updatedContainer = widget.querySelector(".sg-last-updated");
     const tablesContainer = widget.querySelector(".sg-location-tables");
 
     widget.querySelectorAll(".sg-filter-content").forEach(c => {
       c.style.display = "none";
     });
+
+    applyViewClass();
 
     /* ============================================================
        FETCH DATA
@@ -446,6 +500,7 @@
       widget.querySelectorAll(`input[name='${uid}-date-format']`)
         .forEach(r => r.addEventListener("change", () => {
           store.set("sg-date-format", r.value);
+          buildTilePanel();
           scheduleRender();
         }));
 
@@ -473,6 +528,237 @@
 
       enableColumnDrag();
       buildSortPanel();
+      buildViewPanel();
+      buildTilePanel();
+    }
+
+    /* ============================================================
+       VIEW (TABLE / TILES) + TILE PICKER
+       ============================================================ */
+
+    function applyViewClass() {
+      widget.classList.toggle("sg-view-tiles", sg_view === "tiles");
+      widget.classList.toggle("sg-view-table", sg_view !== "tiles");
+    }
+
+    function buildViewPanel() {
+      viewContainer.innerHTML = [
+        { id: "table", label: "Table" },
+        { id: "tiles", label: "Tiles" }
+      ].map(v => `
+        <label>
+          <input type="radio" name="${uid}-view" value="${v.id}"
+                 ${v.id === sg_view ? "checked" : ""}>
+          ${v.label}
+        </label>`).join("");
+
+      viewContainer.querySelectorAll("input").forEach(r =>
+        r.addEventListener("change", () => {
+          sg_view = r.value;
+          store.set("sg-view", sg_view);
+          applyViewClass();
+          scheduleRender();
+        }));
+    }
+
+    const ordinal = n => n === 1 ? "Nearest" : n === 2 ? "2nd nearest" : n === 3 ? "3rd nearest" : `${n}th nearest`;
+
+    /* Delivery periods for one location + commodity, nearest first */
+    function deliveriesFor(locName, com) {
+      const loc = sg_locations.find(l => l.name === locName);
+      if (!loc || !Array.isArray(loc.cashbids)) return [];
+      const time = raw => {
+        const d = new Date(normalize(raw));
+        return isNaN(d) ? Infinity : d.getTime();
+      };
+      return loc.cashbids
+        .filter(b => b.name === com)
+        .map((bid, i) => ({ bid, loc, i }))
+        .sort((a, b) =>
+          time(a.bid.delivery_start_raw) - time(b.bid.delivery_start_raw) ||
+          time(a.bid.delivery_end_raw) - time(b.bid.delivery_end_raw) ||
+          a.i - b.i)
+        .map(({ bid, loc }) => ({ bid, loc }));
+    }
+
+    function resolvePick(p) {
+      const list = deliveriesFor(p.loc, p.com);
+      if (p.start !== undefined) {
+        return list.find(r =>
+          r.bid.delivery_start_raw === p.start && r.bid.delivery_end_raw === p.end) || null;
+      }
+      return list[p.nearby - 1] || null;
+    }
+
+    /* With nothing picked: the nearest delivery of every commodity at every location */
+    function defaultPicks() {
+      const picks = [];
+      sg_locations.forEach(loc => {
+        const seen = new Set();
+        (loc.cashbids || []).forEach(bid => {
+          if (seen.has(bid.name)) return;
+          seen.add(bid.name);
+          picks.push({ loc: loc.name, com: bid.name, nearby: 1 });
+        });
+      });
+      return picks;
+    }
+
+    function pickLabel(p) {
+      const when = p.start !== undefined
+        ? sg_formatDelivery(p.start, p.end)
+        : `${ordinal(p.nearby)} delivery`;
+      return `${p.com} · ${p.loc} — ${when}`;
+    }
+
+    function saveTilePicks(picks) {
+      sg_tilePicks = picks;
+      if (picks) store.set("sg-tiles", JSON.stringify(picks));
+      else store.remove("sg-tiles");
+      buildTilePanel();
+      scheduleRender();
+    }
+
+    function embedSnippet() {
+      const attrs = [`data-view="tiles"`];
+      if (sg_tilePicks && sg_tilePicks.length) {
+        attrs.push(`data-tiles='${JSON.stringify(sg_tilePicks).replace(/&/g, "&amp;").replace(/'/g, "&#39;")}'`);
+      }
+      if (sg_tileSize !== "m") attrs.push(`data-tile-size="${sg_tileSize}"`);
+      return attrs.join("\n");
+    }
+
+    function buildTilePanel() {
+      const picks = sg_tilePicks || [];
+      const locs = sg_locations.map(l => l.name);
+      const addLoc = tilesContainer.dataset.addLoc && locs.includes(tilesContainer.dataset.addLoc)
+        ? tilesContainer.dataset.addLoc : locs[0];
+      const coms = [...new Set(
+        ((sg_locations.find(l => l.name === addLoc) || {}).cashbids || []).map(b => b.name)
+      )];
+      const addCom = tilesContainer.dataset.addCom && coms.includes(tilesContainer.dataset.addCom)
+        ? tilesContainer.dataset.addCom : coms[0];
+      const periods = addLoc && addCom ? deliveriesFor(addLoc, addCom) : [];
+
+      const rows = picks.length
+        ? picks.map((p, i) => `
+            <div class="sg-tile-pick${resolvePick(p) ? "" : " sg-tile-pick-missing"}">
+              <span class="sg-tile-pick-label">${sg_escape(pickLabel(p))}${
+                resolvePick(p) ? "" : ` <em>(not in feed)</em>`}</span>
+              <button type="button" class="sg-tile-btn" data-act="up" data-i="${i}"
+                      ${i === 0 ? "disabled" : ""} aria-label="Move up" title="Move up">▲</button>
+              <button type="button" class="sg-tile-btn" data-act="down" data-i="${i}"
+                      ${i === picks.length - 1 ? "disabled" : ""} aria-label="Move down" title="Move down">▼</button>
+              <button type="button" class="sg-tile-btn sg-tile-remove" data-act="remove" data-i="${i}"
+                      aria-label="Remove" title="Remove">×</button>
+            </div>`).join("")
+        : `<div class="sg-sort-empty">No tiles picked — showing the nearest delivery of every commodity.</div>`;
+
+      const nearbyCount = Math.max(1, Math.min(periods.length, 3));
+      const periodOptions =
+        `<optgroup label="Rolls forward automatically">${
+          Array.from({ length: nearbyCount }, (_, k) =>
+            `<option value="n:${k + 1}">${ordinal(k + 1)} delivery</option>`).join("")
+        }</optgroup>` +
+        (periods.length
+          ? `<optgroup label="Specific delivery">${periods.map((r, k) =>
+              `<option value="x:${k}">${sg_escape(sg_formatDelivery(r.bid.delivery_start_raw, r.bid.delivery_end_raw))}</option>`
+            ).join("")}</optgroup>`
+          : "");
+
+      tilesContainer.innerHTML = `
+        <div class="sg-tile-picks">${rows}</div>
+        <div class="sg-tile-add">
+          <div class="sg-tile-add-title">Add a tile</div>
+          <select class="sg-tile-add-loc" aria-label="Location">
+            ${locs.map(l => `<option value="${sg_escape(l)}" ${l === addLoc ? "selected" : ""}>${sg_escape(l)}</option>`).join("")}
+          </select>
+          <select class="sg-tile-add-com" aria-label="Commodity">
+            ${coms.map(c => `<option value="${sg_escape(c)}" ${c === addCom ? "selected" : ""}>${sg_escape(c)}</option>`).join("")}
+          </select>
+          <select class="sg-tile-add-when" aria-label="Delivery">${periodOptions}</select>
+          <button type="button" class="sg-reset-btn sg-tile-add-btn" ${addLoc && addCom ? "" : "disabled"}>Add tile</button>
+        </div>
+        <div class="sg-tile-sizes" role="radiogroup" aria-label="Tile size">
+          <span>Size</span>
+          ${[["s", "Small"], ["m", "Medium"], ["l", "Large"]].map(([id, label]) => `
+            <label><input type="radio" name="${uid}-tile-size" value="${id}"
+                          ${id === sg_tileSize ? "checked" : ""}> ${label}</label>`).join("")}
+        </div>
+        <div class="sg-tile-actions">
+          <button type="button" class="sg-reset-btn sg-tile-reset">${
+            ownerTiles ? "Reset to site default" : "Clear tiles"}</button>
+          <button type="button" class="sg-reset-btn sg-tile-copy">Copy embed settings</button>
+        </div>
+      `;
+
+      const locSel = tilesContainer.querySelector(".sg-tile-add-loc");
+      const comSel = tilesContainer.querySelector(".sg-tile-add-com");
+      locSel.addEventListener("change", () => {
+        tilesContainer.dataset.addLoc = locSel.value;
+        delete tilesContainer.dataset.addCom;
+        buildTilePanel();
+      });
+      comSel.addEventListener("change", () => {
+        tilesContainer.dataset.addCom = comSel.value;
+        buildTilePanel();
+      });
+
+      tilesContainer.querySelector(".sg-tile-add-btn").addEventListener("click", () => {
+        const when = tilesContainer.querySelector(".sg-tile-add-when").value;
+        let pick;
+        if (when.startsWith("x:")) {
+          const r = periods[Number(when.slice(2))];
+          if (!r) return;
+          pick = { loc: addLoc, com: addCom, start: r.bid.delivery_start_raw, end: r.bid.delivery_end_raw };
+        } else {
+          pick = { loc: addLoc, com: addCom, nearby: Number(when.slice(2)) || 1 };
+        }
+        saveTilePicks(picks.concat([pick]));
+      });
+
+      tilesContainer.querySelectorAll(".sg-tile-btn").forEach(btn =>
+        btn.addEventListener("click", () => {
+          const i = Number(btn.dataset.i);
+          const next = picks.slice();
+          if (btn.dataset.act === "remove") next.splice(i, 1);
+          else {
+            const j = btn.dataset.act === "up" ? i - 1 : i + 1;
+            if (j < 0 || j >= next.length) return;
+            [next[i], next[j]] = [next[j], next[i]];
+          }
+          saveTilePicks(next);
+        }));
+
+      tilesContainer.querySelectorAll(`input[name='${uid}-tile-size']`).forEach(r =>
+        r.addEventListener("change", () => {
+          sg_tileSize = r.value;
+          store.set("sg-tile-size", sg_tileSize);
+          scheduleRender();
+        }));
+
+      tilesContainer.querySelector(".sg-tile-reset").addEventListener("click", () => {
+        store.remove("sg-tile-size");
+        store.remove("sg-tiles");
+        sg_tileSize = ownerTileSize;
+        sg_tilePicks = ownerTiles;
+        buildTilePanel();
+        scheduleRender();
+      });
+
+      const copyBtn = tilesContainer.querySelector(".sg-tile-copy");
+      copyBtn.addEventListener("click", () => {
+        const text = embedSnippet();
+        const done = () => {
+          copyBtn.textContent = "Copied — paste into the widget's <div>";
+          setTimeout(() => { copyBtn.textContent = "Copy embed settings"; }, 2500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, () => window.prompt("Copy these attributes:", text));
+        } else {
+          window.prompt("Copy these attributes:", text);
+        }
+      });
     }
 
     /* ============================================================
@@ -906,9 +1192,61 @@
        RENDER TABLES
        ============================================================ */
 
+    function changeInfo(bid) {
+      const changeVal = sg_changeValue(bid);
+      const num = sg_parseNum(changeVal);
+      const cls = isNaN(num) ? "" : num > 0 ? "sg-up" : num < 0 ? "sg-down" : "sg-flat";
+      return {
+        value: changeVal,
+        cls,
+        arrow: cls === "sg-up" ? "▲" : cls === "sg-down" ? "▼" : cls === "sg-flat" ? "▬" : "",
+        label: cls === "sg-up" ? "Up" : cls === "sg-down" ? "Down" : cls === "sg-flat" ? "Unchanged" : ""
+      };
+    }
+
+    /* ============================================================
+       RENDER TILES
+       ============================================================ */
+
+    function renderTiles() {
+      const picks = sg_tilePicks && sg_tilePicks.length ? sg_tilePicks : defaultPicks();
+
+      const tiles = picks.map(resolvePick).filter(Boolean).map(row => {
+        const bid = row.bid;
+        const price = sg_roundCashPrice(bid);
+        const shownPrice = /^-?\d/.test(String(price)) ? `$${price}` : price;
+        const ch = changeInfo(bid);
+        const flash = sg_flash.get(bidKey(row.loc, bid));
+        const foot = [
+          bid.basis !== undefined && bid.basis !== "" ? `<span>Basis ${sg_escape(bid.basis)}</span>` : "",
+          bid.futures !== undefined && bid.futures !== "" ? `<span>Futures ${sg_escape(bid.futures)}</span>` : ""
+        ].join("");
+
+        return `
+          <div class="sg-tile${flash ? ` sg-flash-${flash}` : ""}">
+            <div class="sg-tile-head">
+              <span class="sg-tile-com">${sg_escape(bid.name)}</span>
+              <span class="sg-tile-loc">${sg_escape(row.loc.name)}</span>
+            </div>
+            <div class="sg-tile-del">${sg_escape(sg_formatDelivery(bid.delivery_start_raw, bid.delivery_end_raw))}</div>
+            <div class="sg-tile-price">${sg_escape(shownPrice)}</div>
+            <div class="sg-tile-change ${ch.cls}">${ch.arrow
+              ? `<span class="sg-change-arrow" aria-label="${ch.label}">${ch.arrow}</span> `
+              : ""}${sg_escape(ch.value)}</div>
+            ${foot ? `<div class="sg-tile-foot">${foot}</div>` : ""}
+          </div>`;
+      }).join("");
+
+      tablesContainer.innerHTML = tiles
+        ? `<div class="sg-tiles sg-tiles-${sg_tileSize}">${tiles}</div>`
+        : `<p class="sg-error">None of the picked bids are in the feed right now.</p>`;
+      sg_flash = new Map();
+    }
+
     function renderTables() {
       tablesContainer.innerHTML = "";
       if (!sg_lastUpdated) return;
+      if (sg_view === "tiles") return renderTiles();
 
       const selectedLocations =
         [...widget.querySelectorAll(".sg-loc-check:checked")]
@@ -955,24 +1293,9 @@
 
         sortRows(group.rows).forEach(row => {
           const bid = row.bid;
-          const changeVal = sg_changeValue(bid);
-          const num = sg_parseNum(changeVal);
-          const changeClass =
-            !isNaN(num)
-              ? num > 0
-                ? "sg-up"
-                : num < 0
-                  ? "sg-down"
-                  : "sg-flat"
-              : "";
-          const changeArrow =
-            changeClass === "sg-up" ? "▲" :
-            changeClass === "sg-down" ? "▼" :
-            changeClass === "sg-flat" ? "▬" : "";
-          const changeLabel =
-            changeClass === "sg-up" ? "Up" :
-            changeClass === "sg-down" ? "Down" :
-            changeClass === "sg-flat" ? "Unchanged" : "";
+          const {
+            value: changeVal, cls: changeClass, arrow: changeArrow, label: changeLabel
+          } = changeInfo(bid);
 
           let rowCells = "";
 
@@ -1107,6 +1430,15 @@
      GLOBAL ENTRY POINT + AUTO-MOUNT
      Standalone embeds keep working: <div id="sg-cashbid-widget">
      Multiple instances: SGCashBid.mount(el, { storagePrefix, json })
+
+     Tile view (site-owner defaults; viewers can change them in ⚙):
+       data-view="tiles"            or mount option view: "tiles"
+       data-tiles='[{"loc":"Main","com":"Corn","nearby":1},
+                    {"loc":"Main","com":"Soybeans","start":"11/01/2026","end":"11/30/2026"}]'
+                                    nearby n = nth-nearest delivery (rolls forward);
+                                    start/end = one exact delivery period
+       data-tile-size="s|m|l"       default m
+     "Copy embed settings" in the Tiles menu writes these for you.
      ============================================================ */
 
   window.SGCashBid = {

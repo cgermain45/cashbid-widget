@@ -945,6 +945,76 @@ html[data-theme="light"] .qb-root .sgw .sgw-i-moon {
   padding: 16px;
 }
 
+/* Tile view inside a panel */
+.qb-root .sg-tiles {
+  --sg-tile-min: 170px;
+  --sg-tile-price: 30px;
+  gap: 8px;
+  padding: 10px;
+}
+
+.qb-root .sg-tiles-s { --sg-tile-min: 130px; --sg-tile-price: 22px; }
+.qb-root .sg-tiles-l { --sg-tile-min: 230px; --sg-tile-price: 42px; }
+
+.qb-root .sg-tile {
+  background: var(--qb-panel-2);
+  border-color: var(--qb-line);
+  border-radius: var(--qb-radius);
+  box-shadow: none;
+}
+
+.qb-root .sg-tile-com {
+  font-family: var(--qb-title-font);
+  letter-spacing: var(--qb-title-spacing);
+  text-transform: var(--qb-title-case);
+  color: var(--qb-accent);
+}
+
+.qb-root .sg-tile-loc,
+.qb-root .sg-tile-del,
+.qb-root .sg-tile-foot {
+  color: var(--qb-muted);
+}
+
+.qb-root .sg-tile-price,
+.qb-root .sg-tile-change,
+.qb-root .sg-tile-foot {
+  font-family: var(--qb-mono);
+}
+
+.qb-root .sg-tile-price {
+  color: var(--qb-text);
+}
+
+.qb-root .sg-tile-foot {
+  border-color: var(--qb-line);
+}
+
+.qb-root .sg-tile-pick {
+  color: var(--qb-text);
+}
+
+.qb-root .sg-tile-pick-missing .sg-tile-pick-label,
+.qb-root .sg-tile-add-title,
+.qb-root .sg-tile-sizes > span {
+  color: var(--qb-muted);
+}
+
+.qb-root .sg-tile-add {
+  border-color: var(--qb-line);
+}
+
+.qb-root .sg-tile-btn,
+.qb-root .sg-tile-add select {
+  color: var(--qb-text);
+  background: var(--qb-panel-2);
+  border-color: var(--qb-line);
+}
+
+.qb-root .sg-tile-remove {
+  color: var(--qb-down);
+}
+
 /* ============================================================
    NARROW SCREENS — one column, panels stack
    ============================================================ */
