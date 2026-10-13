@@ -4,7 +4,7 @@
 
 .sg-cashbid {
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
-  max-width: 720px;
+  max-width: 860px;
   margin: 40px auto;
   text-align: center;
 }
@@ -597,41 +597,27 @@
 
 /* Tile picker (settings menu) */
 
-.sg-tile-pick {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 0;
-  font-size: 13px;
-  color: #000;
-}
-
-.sg-tile-pick-label {
-  flex: 1;
-  min-width: 0;
-}
-
-.sg-tile-pick-missing .sg-tile-pick-label {
+.sg-tile-hint {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.4;
   color: #6b7280;
 }
 
-.sg-tile-btn {
-  flex: none;
-  border: 1px solid #d0d7e2;
-  background: #fff;
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 11px;
-  cursor: pointer;
+.sg-tile-hint strong {
+  color: #333;
 }
 
-.sg-tile-btn:disabled {
-  opacity: .35;
-  cursor: default;
+.sg-tile-missing {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
 }
 
-.sg-tile-remove {
-  color: #c62828;
+.sg-filter-content label.sg-tile-notes-toggle {
+  margin-top: 8px;
+  font-size: 13px;
 }
 
 .sg-tile-add {
@@ -688,7 +674,7 @@
   margin-left: auto;
 }
 
-.sg-filter-section.sg-edit-section + .sg-settings-section {
+.sg-view-tiles .sg-filter-section.sg-edit-section + .sg-settings-section {
   margin-left: 0;
 }
 
@@ -802,6 +788,32 @@
     width: 100%;
     margin-left: 0;
   }
+}
+
+/* Bid notes on a tile */
+.sg-tile-notes {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+  font-style: italic;
+  color: #4b5563;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sg-cashbid td.sg-col-notes {
+  font-size: 13px;
+  color: #4b5563;
+  min-width: 110px;
+}
+
+/* With every column on, scroll sideways inside the card instead of
+   spilling past it */
+.sg-card {
+  overflow-x: auto;
 }
 
 /* Keep long names clear of the × */
