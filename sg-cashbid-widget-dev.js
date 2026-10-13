@@ -16,6 +16,12 @@
     }[c]));
   }
 
+  /* A bid's free-text note (feeds name the field differently) */
+  function sg_bidNotes(bid) {
+    const v = bid.notes ?? bid.note ?? bid.comments ?? bid.comment ?? "";
+    return String(v == null ? "" : v).trim();
+  }
+
   function sg_parseNum(v) {
     if (v === null || v === undefined) return NaN;
     if (typeof v === "number") return v;
@@ -106,7 +112,8 @@
       { key: "futures", label: "Futures" },
       { key: "basis", label: "Basis" },
       { key: "cashprice", label: "Cash Price" },
-      { key: "change", label: "Change" }
+      { key: "change", label: "Change" },
+      { key: "notes", label: "Notes" }
     ];
 
     let sg_columns = sg_defaultColumns.slice();
@@ -135,11 +142,15 @@
       ? "tiles" : "table";
     const ownerTiles = sanitizePicks(parseJSON(opts.tiles !== undefined ? opts.tiles : widget.dataset.tiles));
     const ownerTileSize = validTileSize(opts.tileSize || widget.dataset.tileSize) || "m";
+    const ownerTileNotes = String(opts.tileNotes !== undefined ? opts.tileNotes
+      : widget.dataset.tileNotes !== undefined ? widget.dataset.tileNotes : "true") !== "false";
 
     let sg_view = store.get("sg-view") === "tiles" || store.get("sg-view") === "table"
       ? store.get("sg-view") : ownerView;
     let sg_tilePicks = sanitizePicks(parseJSON(store.get("sg-tiles"))) || ownerTiles;
     let sg_tileSize = validTileSize(store.get("sg-tile-size")) || ownerTileSize;
+    let sg_tileNotes = store.get("sg-tile-notes") === null || store.get("sg-tile-notes") === undefined
+      ? ownerTileNotes : store.get("sg-tile-notes") === "1";
 
     function parseJSON(v) {
       if (v === null || v === undefined || v === "") return null;
@@ -631,13 +642,6 @@
       return picks;
     }
 
-    function pickLabel(p) {
-      const when = p.start !== undefined
-        ? sg_formatDelivery(p.start, p.end)
-        : `${ordinal(p.nearby)} delivery`;
-      return `${p.com} · ${p.loc} — ${when}`;
-    }
-
     function saveTilePicks(picks) {
       sg_tilePicks = picks;
       if (picks) store.set("sg-tiles", JSON.stringify(picks));
@@ -713,6 +717,7 @@
         attrs.push(`data-tiles='${JSON.stringify(sg_tilePicks).replace(/&/g, "&amp;").replace(/'/g, "&#39;")}'`);
       }
       if (sg_tileSize !== "m") attrs.push(`data-tile-size="${sg_tileSize}"`);
+      if (!sg_tileNotes) attrs.push(`data-tile-notes="false"`);
       return attrs.join("\n");
     }
 
@@ -761,22 +766,19 @@
           }).join("")}
         </div>`).join("");
 
-      const rows = picks.length
-        ? picks.map((p, i) => `
-            <div class="sg-tile-pick${resolvePick(p) ? "" : " sg-tile-pick-missing"}">
-              <span class="sg-tile-pick-label">${sg_escape(pickLabel(p))}${
-                resolvePick(p) ? "" : ` <em>(not in feed)</em>`}</span>
-              <button type="button" class="sg-tile-btn" data-act="up" data-i="${i}"
-                      ${i === 0 ? "disabled" : ""} aria-label="Move up" title="Move up">▲</button>
-              <button type="button" class="sg-tile-btn" data-act="down" data-i="${i}"
-                      ${i === picks.length - 1 ? "disabled" : ""} aria-label="Move down" title="Move down">▼</button>
-              <button type="button" class="sg-tile-btn sg-tile-remove" data-act="remove" data-i="${i}"
-                      aria-label="Remove" title="Remove">×</button>
-            </div>`).join("")
-        : `<div class="sg-sort-empty">No tiles picked — showing the nearest delivery of every commodity.</div>`;
+      const missing = picks.filter(p => !resolvePick(p)).length;
+      const editHint = opts.editToggle
+        ? "Turn on <strong>Edit tiles</strong> to drag tiles into order or remove one with ×."
+        : "Unlock the board to drag tiles into order or remove one with ×.";
 
       tilesContainer.innerHTML = `
-        <div class="sg-tile-picks">${rows}</div>
+        <p class="sg-tile-hint">${picks.length ? editHint
+          : "Showing the nearest delivery of every commodity. Add tiles below to choose your own."}</p>
+        ${missing ? `
+        <p class="sg-tile-hint sg-tile-missing">
+          ${missing === 1 ? "1 picked bid isn't" : `${missing} picked bids aren't`} in the feed right now.
+          <button type="button" class="sg-reset-btn sg-tile-prune">Remove</button>
+        </p>` : ""}
         <div class="sg-tile-add">
           <div class="sg-tile-add-title">Add tiles</div>
           <select class="sg-tile-add-loc" aria-label="Location">
@@ -792,6 +794,10 @@
             <label><input type="radio" name="${uid}-tile-size" value="${id}"
                           ${id === sg_tileSize ? "checked" : ""}> ${label}</label>`).join("")}
         </div>
+        <label class="sg-tile-notes-toggle">
+          <input type="checkbox" class="sg-tile-notes-check" ${sg_tileNotes ? "checked" : ""}>
+          Show notes on tiles
+        </label>
         <div class="sg-tile-actions">
           <button type="button" class="sg-reset-btn sg-tile-reset">${
             ownerTiles ? "Reset to site default" : "Clear tiles"}</button>
@@ -818,18 +824,14 @@
         if (added.length) saveTilePicks(picks.concat(added));
       });
 
-      tilesContainer.querySelectorAll(".sg-tile-btn").forEach(btn =>
-        btn.addEventListener("click", () => {
-          const i = Number(btn.dataset.i);
-          const next = picks.slice();
-          if (btn.dataset.act === "remove") next.splice(i, 1);
-          else {
-            const j = btn.dataset.act === "up" ? i - 1 : i + 1;
-            if (j < 0 || j >= next.length) return;
-            [next[i], next[j]] = [next[j], next[i]];
-          }
-          saveTilePicks(next);
-        }));
+      tilesContainer.querySelector(".sg-tile-notes-check").addEventListener("change", e => {
+        sg_tileNotes = e.target.checked;
+        store.set("sg-tile-notes", sg_tileNotes ? "1" : "0");
+        scheduleRender();
+      });
+
+      const prune = tilesContainer.querySelector(".sg-tile-prune");
+      if (prune) prune.addEventListener("click", () => saveTilePicks(picks.filter(resolvePick)));
 
       tilesContainer.querySelectorAll(`input[name='${uid}-tile-size']`).forEach(r =>
         r.addEventListener("change", () => {
@@ -841,6 +843,8 @@
       tilesContainer.querySelector(".sg-tile-reset").addEventListener("click", () => {
         store.remove("sg-tile-size");
         store.remove("sg-tiles");
+        store.remove("sg-tile-notes");
+        sg_tileNotes = ownerTileNotes;
         sg_tileSize = ownerTileSize;
         sg_tilePicks = ownerTiles;
         buildTilePanel();
@@ -1016,6 +1020,8 @@
           return sg_parseNum(sg_roundCashPrice(bid));
         case "change":
           return sg_parseNum(sg_changeValue(bid));
+        case "notes":
+          return sg_bidNotes(bid).toLowerCase();
         default:
           return NaN;
       }
@@ -1194,7 +1200,7 @@
     function autoMobileColumns() {
       if (window.innerWidth > 600) return;
 
-      const priorityKeys = ["change", "basis", "futures"];
+      const priorityKeys = ["change", "basis", "futures", "notes"];
       const checks = widget.querySelectorAll(".sg-col-check");
 
       priorityKeys.forEach(key => {
@@ -1337,6 +1343,8 @@
               ? `<span class="sg-change-arrow" aria-label="${ch.label}">${ch.arrow}</span> `
               : ""}${sg_escape(ch.value)}</div>
             ${foot ? `<div class="sg-tile-foot">${foot}</div>` : ""}
+            ${sg_tileNotes && sg_bidNotes(bid)
+              ? `<div class="sg-tile-notes">${sg_escape(sg_bidNotes(bid))}</div>` : ""}
           </div>`;
       }).join("");
 
@@ -1434,6 +1442,9 @@
                   ? `<span class="sg-change-arrow" aria-label="${changeLabel}">${changeArrow}</span> ${sg_escape(changeVal)}`
                   : sg_escape(changeVal);
                 extraClass = changeClass;
+                break;
+              case "notes":
+                value = sg_escape(sg_bidNotes(bid));
                 break;
             }
 
@@ -1546,6 +1557,7 @@
                                     nearby n = nth-nearest delivery (rolls forward);
                                     start/end = one exact delivery period
        data-tile-size="s|m|l"       default m
+       data-tile-notes="false"      hide the bid's notes on tiles (shown by default)
      "Copy embed settings" in the Tiles menu writes these for you.
      ============================================================ */
 

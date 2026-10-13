@@ -22,13 +22,15 @@ The dev widget (`sg-cashbid-widget-dev.js`) can show bids as tiles instead of a 
      data-view="tiles"
      data-tiles='[{"loc":"Main Elevator","com":"Corn","nearby":1},
                   {"loc":"Main Elevator","com":"Soybeans","start":"11/01/2026","end":"11/30/2026"}]'
-     data-tile-size="m"></div>
+     data-tile-size="m"
+     data-tile-notes="true"></div>
 ```
 
 - `"nearby": 1` is the nearest delivery (2 = second nearest…). It rolls forward on its own when a delivery period drops off the feed.
 - `"start"` / `"end"` pin one exact delivery period, written as the feed writes it.
 - With no `data-tiles`, the widget shows the nearest delivery of every commodity at every location.
-- Viewers can switch Table/Tiles, add tiles (tick several and "Add selected"), remove and reorder them, and change the size in the ⚙ menu.
+- Viewers can switch Table/Tiles, add tiles (tick several and "Add selected"), change the size and turn notes on or off in the ⚙ menu.
+- Each bid's **notes** (the feed's `notes` field) show as a Notes column in the table, which can be turned off under ⚙ → Columns, and at the bottom of each tile, which `data-tile-notes="false"` or ⚙ → Tiles → "Show notes on tiles" turns off.
 - **Edit tiles** (next to ⚙) turns on dragging tiles to rearrange them and an × on each tile to remove it. On the quoteboard this follows the board's Lock button instead: unlocked = editable. Their choices are saved in their browser and override the site defaults until they press "Reset to site default".
 - "Copy embed settings" in the ⚙ → Tiles menu copies the attributes for the current picks, so a site owner can set the tiles up by clicking and paste the result into the embed.
 - On the quoteboard, choose **Show As → Tiles** when adding a Cash Bids panel, or switch any cash bid panel in its ⚙ menu.
