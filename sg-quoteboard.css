@@ -318,6 +318,12 @@ body {
   --sgt-label-text: var(--qb-accent);
 }
 
+/* News ticker: same muted badge, headline text in the regular font */
+.qb-ticker-news.sgt {
+  --sgt-label-bg: var(--qb-head);
+  --sgt-label-text: var(--qb-accent);
+}
+
 /* ============================================================
    BOARD + PANELS
    ============================================================ */

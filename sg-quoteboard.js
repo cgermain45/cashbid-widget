@@ -104,6 +104,7 @@
       locked: false,
       ticker: true,
       futuresTicker: false,
+      newsTicker: false,
       fit: true,
       cashFeed: "",           // last cash bid feed URL entered (reused by new panels)
       weatherLat: null,       // last weather location entered
@@ -211,6 +212,10 @@
         <button type="button" class="qb-btn qb-toggle-futures-ticker" aria-pressed="false" title="Show or hide the futures ticker">
           Futures Ticker
         </button>` : ""}
+        ${window.SGNews ? `
+        <button type="button" class="qb-btn qb-toggle-news-ticker" aria-pressed="false" title="Show or hide the news headline ticker">
+          News Ticker
+        </button>` : ""}
         <button type="button" class="qb-btn qb-toggle-fit" aria-pressed="true"
                 title="Fit to screen: the board always fills the window with no scrolling. Turn off to let panels grow past the window.">
           <span class="qb-fit-icon" aria-hidden="true">⤢</span> <span class="qb-btn-label">Fit to screen</span>
@@ -274,6 +279,7 @@
 
     <div class="qb-ticker"></div>
     <div class="qb-ticker qb-ticker-futures" hidden></div>
+    <div class="qb-ticker qb-ticker-news" hidden></div>
 
     <main class="qb-board" aria-label="Quoteboard panels"></main>
 
@@ -366,8 +372,9 @@
   `;
 
   const board = root.querySelector(".qb-board");
-  const tickerEl = root.querySelector(".qb-ticker:not(.qb-ticker-futures)");
+  const tickerEl = root.querySelector(".qb-ticker:not(.qb-ticker-futures):not(.qb-ticker-news)");
   const futuresTickerEl = root.querySelector(".qb-ticker-futures");
+  const newsTickerEl = root.querySelector(".qb-ticker-news");
   const dialog = root.querySelector(".qb-dialog");
 
   /* ============================================================
@@ -1261,6 +1268,32 @@
   }
 
   /* ============================================================
+     NEWS TICKER — Barchart OnDemand headlines (sg-news.js). Uses
+     the same API key as the futures panels. Source is fixed to
+     BRUG for now.
+     ============================================================ */
+
+  let newsTicker = null;
+
+  function loadNewsTicker() {
+    if (!window.SGNews) return;
+    if (!prefs.newsTicker) {
+      // Stop polling while hidden
+      if (newsTicker) newsTicker.destroy();
+      newsTicker = null;
+      return;
+    }
+    if (newsTicker) return;
+    newsTicker = window.SGNews.mountTicker(newsTickerEl, {
+      sources: root.dataset.newsSources || "BRUG",
+      refresh: 5,
+      links: false, // a wall screen has no one to click
+      apikey: root.dataset.futuresApikey || undefined,
+      feed: root.dataset.newsFeed || undefined
+    });
+  }
+
+  /* ============================================================
      TOOLBAR
      ============================================================ */
 
@@ -1269,6 +1302,7 @@
   const fitBtn = root.querySelector(".qb-toggle-fit");
   const tickerBtn = root.querySelector(".qb-toggle-ticker");
   const futuresTickerBtn = root.querySelector(".qb-toggle-futures-ticker");
+  const newsTickerBtn = root.querySelector(".qb-toggle-news-ticker");
 
   function applyPrefs() {
     const html = document.documentElement;
@@ -1297,6 +1331,9 @@
 
     futuresTickerEl.hidden = !prefs.futuresTicker || !window.SGFutures;
     if (futuresTickerBtn) futuresTickerBtn.setAttribute("aria-pressed", String(prefs.futuresTicker));
+
+    newsTickerEl.hidden = !prefs.newsTicker || !window.SGNews;
+    if (newsTickerBtn) newsTickerBtn.setAttribute("aria-pressed", String(prefs.newsTicker));
   }
 
   function refreshAll() {
@@ -1348,6 +1385,13 @@
     savePrefs();
     applyPrefs();
     loadFuturesTicker();
+  });
+
+  if (newsTickerBtn) newsTickerBtn.addEventListener("click", () => {
+    prefs.newsTicker = !prefs.newsTicker;
+    savePrefs();
+    applyPrefs();
+    loadNewsTicker();
   });
 
 
@@ -1665,6 +1709,7 @@
   saveLayout();
   loadTicker();
   loadFuturesTicker();
+  loadNewsTicker();
   scheduleRefresh();
   tick();
   setInterval(tick, 1000);

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>News Ticker</title>
+
+  <link rel="stylesheet" href="sg-ticker.css">
+  <link rel="stylesheet" href="sg-futures.css">
+
+  <style>
+    :root {
+      --page-bg: #f4f6f9;
+      --page-text: #1f2937;
+      --page-muted: #5b6675;
+      --code-bg: #0f141b;
+      --code-text: #e6edf3;
+      --card-bg: #ffffff;
+      --card-line: #dde3ea;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page-bg: #0b0f14;
+        --page-text: #e6edf3;
+        --page-muted: #8b98a9;
+        --code-bg: #121821;
+        --code-text: #e6edf3;
+        --card-bg: #121821;
+        --card-line: #263142;
+      }
+    }
+
+    body {
+      margin: 0;
+      background: var(--page-bg);
+      color: var(--page-text);
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 16px 64px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 26px;
+    }
+
+    .lede {
+      margin: 0 0 32px;
+      color: var(--page-muted);
+    }
+
+    section {
+      margin-bottom: 40px;
+    }
+
+    h2 {
+      font-size: 17px;
+      margin: 0 0 4px;
+    }
+
+    section > p {
+      margin: 0 0 12px;
+      color: var(--page-muted);
+      font-size: 14px;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--card-line);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--page-muted);
+    }
+
+    code {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .note {
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--card-line);
+      background: var(--card-bg);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>News Ticker</h1>
+  <p class="lede">Scrolling Barchart news headlines from Barchart OnDemand (<code>getNews.json</code>). Viewers enter a Barchart OnDemand API key inside the widget.</p>
+
+  <p class="note">It uses the same API key as the futures widgets: a key entered in either one works in both. By default the key is never part of the embed code; it stays in the viewer's browser for the session, or on the device if "Remember on this device" is checked. Site owners can build a key in with <code>data-apikey</code>, but anyone can then read it in the page source.</p>
+
+  <section>
+    <h2>Ticker</h2>
+    <p>Newest headlines first. Hover to pause; click a headline to open the story.</p>
+    <div data-sg-news-ticker data-sources="BRUG"></div>
+<pre><code>&lt;div data-sg-news-ticker data-sources="BRUG"&gt;&lt;/div&gt;
+&lt;script src="https://cgermain45.github.io/cashbid-widget/sg-news.js"&gt;&lt;/script&gt;</code></pre>
+    <p style="margin-top:12px">The script loads its stylesheets from the same folder automatically.</p>
+  </section>
+
+  <section>
+    <h2>Options</h2>
+    <table>
+      <thead>
+        <tr><th>Attribute</th><th>Default</th><th>What it does</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>data-sources</code></td><td><code>BRUG</code></td><td>News source code(s). Only BRUG is set up for now.</td></tr>
+        <tr><td><code>data-max</code></td><td><code>20</code></td><td>Most headlines to scroll</td></tr>
+        <tr><td><code>data-refresh</code></td><td><code>5</code></td><td>Minutes between refreshes (0 turns it off)</td></tr>
+        <tr><td><code>data-links</code></td><td><code>true</code></td><td>Headlines open the story on barchart.com in a new tab. <code>false</code> for plain text.</td></tr>
+        <tr><td><code>data-label</code></td><td><code>News</code></td><td>Badge text, or <code>""</code> to hide it</td></tr>
+        <tr><td><code>data-theme</code></td><td><code>dark</code></td><td><code>light</code>, <code>dark</code>, or <code>none</code> (inherit your site's colors)</td></tr>
+        <tr><td><code>data-speed</code></td><td><code>50</code></td><td>Scroll speed in pixels per second</td></tr>
+        <tr><td><code>data-apikey</code></td><td>none</td><td>Builds an OnDemand API key into the widget so viewers aren't asked for one. <strong>Visible to anyone in the page source.</strong></td></tr>
+        <tr><td><code>data-feed</code></td><td>OnDemand <code>getNews.json</code></td><td>Alternate news URL with the same response format, e.g. your own proxy</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+<script src="sg-news.js"></script>
+</body>
+</html>

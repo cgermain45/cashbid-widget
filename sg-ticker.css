@@ -268,3 +268,17 @@ a.sgt-item:focus-visible {
     padding: 0 12px;
   }
 }
+
+/* ============================================================
+   NEWS TICKER (sg-news.js) — headlines read better in the
+   regular font than in the price font
+   ============================================================ */
+
+.sgt.sgn-ticker .sgt-viewport {
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+.sgn-headline {
+  font-weight: 600;
+  white-space: nowrap;
+}
