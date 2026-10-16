@@ -5,11 +5,12 @@ Cash bid embed widgets.
 |---|---|---|
 | [`example.html`](example.html) | `sg-cashbid-widget.js/.css` | Production cash bid table |
 | [`index.html`](index.html) | `sg-cashbid-widget-dev.js/.css` | Dev cash bid table and tiles (sorting, grouping, settings, rounding, tile view) |
-| [`cashbidquoteboard.html`](cashbidquoteboard.html) | `sg-quoteboard.js/.css` + dev widget, ticker, futures, weather | Drag-and-drop quote screen of cash bid, futures, weather, announcement and video/web embed panels |
+| [`cashbidquoteboard.html`](cashbidquoteboard.html) | `sg-quoteboard.js/.css` + dev widget, ticker, futures, weather | Drag-and-drop quote screen of cash bid, futures, weather, announcement and video/web embed panels, with cash, futures and news tickers |
 | [`ticker.html`](ticker.html) | `sg-ticker.js/.css` | Standalone scrolling price ticker — demo, embed code and options |
 | [`futures.html`](futures.html) | `sg-futures.js/.css` | Futures quotes table and ticker (Barchart OnDemand API key) — demo, embed code and options |
 | [`announce.html`](announce.html) | `sg-announce.js/.css` | Announcements / ads widget (rotating slides, images, hosted JSON) — demo, format and options |
 | [`embed.html`](embed.html) | `sg-embed.js/.css` | Video & web embed: IP cameras (MJPEG/snapshots), MP4, HLS, web pages, sandboxed custom HTML |
+| [`news.html`](news.html) | `sg-news.js` (+ `sg-ticker.css`) | Scrolling news headlines from Barchart OnDemand `getNews.json` (same API key as futures) |
 | [`weather.html`](weather.html) | `sg-weather.js/.css` | Standalone National Weather Service widget (U.S., no API key) — demo, embed code and options |
 
 ## Cash bid tiles
@@ -64,3 +65,12 @@ See `weather.html` for all options. Data from [api.weather.gov](https://www.weat
 ```
 
 With `data-editable="true"`, viewers can add and remove symbols and drag rows by their ⠿ grip to reorder them (on the quoteboard, while the board is unlocked). Viewers enter a Barchart OnDemand API key inside the widget; it's kept in their browser (session, or "remember on this device") and isn't part of the embed code. A site owner can build a key in with `data-apikey`, but it's then visible in the page source. See `futures.html` for all options.
+
+## News ticker embed
+
+```html
+<div data-sg-news-ticker data-sources="BRUG"></div>
+<script src="https://cgermain45.github.io/cashbid-widget/sg-news.js"></script>
+```
+
+Scrolls the newest headlines from Barchart OnDemand `getNews.json` (source BRUG for now). It shares the futures widgets' API key: viewers enter it once, in either widget, and it's kept in their browser. On the quoteboard, turn it on with **News Ticker** in the toolbar. See `news.html` for all options.
