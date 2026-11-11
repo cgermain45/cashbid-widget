@@ -6,6 +6,7 @@ Cash bid embed widgets.
 | [`example.html`](example.html) | `sg-cashbid-widget.js/.css` | Production cash bid table |
 | [`index.html`](index.html) | `sg-cashbid-widget-dev.js/.css` | Dev cash bid table and tiles (sorting, grouping, settings, rounding, tile view) |
 | [`cashbidquoteboard.html`](cashbidquoteboard.html) | `sg-quoteboard.js/.css` + dev widget, ticker, futures, weather | Drag-and-drop quote screen of cash bid, futures, weather, announcement and video/web embed panels, with cash, futures and news tickers |
+| — | `sg-quoteboard-embed.js` | Puts the whole quoteboard on any website with one tag (see below) |
 | [`ticker.html`](ticker.html) | `sg-ticker.js/.css` | Standalone scrolling price ticker — demo, embed code and options |
 | [`futures.html`](futures.html) | `sg-futures.js/.css` | Futures quotes table and ticker (Barchart OnDemand API key) — demo, embed code and options |
 | [`announce.html`](announce.html) | `sg-announce.js/.css` | Announcements / ads widget (rotating slides, images, hosted JSON) — demo, format and options |
@@ -74,3 +75,21 @@ With `data-editable="true"`, viewers can add and remove symbols and drag rows by
 ```
 
 Scrolls the newest headlines from Barchart OnDemand `getNews.json` (source BRUG for now). It shares the futures widgets' API key: viewers enter it once, in either widget, and it's kept in their browser. On the quoteboard, turn it on with **News Ticker** in the toolbar. See `news.html` for all options.
+
+## Quoteboard on your own website
+
+Set the board up on `cashbidquoteboard.html`, click **Embed** in the toolbar, and paste the code it gives you into your site:
+
+```html
+<div data-sg-quoteboard
+     data-height="720"
+     data-json="https://yourco.agricharts.com/inc/cashbids/cashbids-json.php"
+     data-board='{…written by the Embed button…}'></div>
+<script src="https://cgermain45.github.io/cashbid-widget/sg-quoteboard-embed.js"></script>
+```
+
+- The script builds an iframe for the board, so your site's styles and the board's can't affect each other.
+- `data-board` carries the board as you set it up: layout, panels, tile picks, columns, theme, colors and title. Visitors get it the first time and again whenever you change the code; in between, their own changes are kept. Copy new code after you change the board.
+- The Embed dialog can lock the board for visitors and pick a height: `600`/`720`/`900` px, `100vh` (full window), or `auto` (grows with the board; use with Fit to screen off).
+- API keys are never put in the code. Visitors enter their own Barchart OnDemand key, or you can add `data-futures-apikey="…"`, which anyone can read in your page source.
+- Settings can also be written by hand: `data-title`, `data-theme` (dark/light), `data-style` (floor/modern/harvest), `data-locked`, `data-fit`, `data-refresh`, `data-ticker`, `data-futures-ticker`, `data-news-ticker`. See the top of `sg-quoteboard-embed.js`.

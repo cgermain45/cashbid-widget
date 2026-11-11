@@ -622,6 +622,47 @@ body {
   margin-top: 4px;
 }
 
+/* Embed dialog */
+
+.qb-embed-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.qb-dialog-form label.qb-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--qb-text);
+}
+
+.qb-embed-code {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--qb-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--qb-text);
+  background: var(--qb-panel-2);
+  border: 1px solid var(--qb-line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  resize: vertical;
+  word-break: break-all;
+}
+
+.qb-embed-dialog code {
+  font-family: var(--qb-mono);
+  font-size: 12px;
+}
+
+/* Visitors on an embedded board don't need the embed button */
+.qb-root.qb-embedded .qb-embed-btn {
+  display: none;
+}
+
 /* Panel-type fields in the Add Panel dialog */
 
 .qb-fields {
@@ -1390,6 +1431,14 @@ html[data-theme="light"] .qb-root .sgw .sgw-i-moon {
   .qb-actions {
     flex: none;
     flex-wrap: nowrap;
+  }
+}
+
+/* Mid-size screens: icon-only buttons (tooltips keep their names) so
+   the toolbar still fits on one row */
+@media (min-width: 1200px) and (max-width: 1599px) {
+  .qb-actions .qb-btn-label {
+    display: none;
   }
 }
 

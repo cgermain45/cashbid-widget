@@ -12,6 +12,19 @@
   const root = document.getElementById("sg-quoteboard");
   if (!root || !window.SGCashBid) return;
 
+  /* Embedded on another site by sg-quoteboard-embed.js: the site owner's
+     settings arrive in the address (#sgqb=…). Only honored inside an
+     iframe, so a link can't overwrite someone's own board. */
+  const EMBED = readEmbedConfig();
+  if (EMBED) {
+    root.classList.add("qb-embedded");
+    ["json", "futuresApikey", "futuresFeed", "newsSources", "newsFeed"].forEach(k => {
+      if (typeof EMBED[k] === "string" && EMBED[k].trim() && !root.dataset[k]) {
+        root.dataset[k] = EMBED[k].trim().slice(0, 2000);
+      }
+    });
+  }
+
   // Optional site-wide cash bid feed (data-json on #sg-quoteboard). When
   // it isn't set, Cash Bids panels ask for a feed URL the first time.
   const DEFAULT_FEED = (root.dataset.json || "").trim();
@@ -93,6 +106,95 @@
       : [];
   }
 
+  /* ============================================================
+     EMBED DEFAULTS
+     The owner's board (layout, panel settings, prefs) is copied into
+     this browser the first time, and again whenever the embed code
+     changes. In between, a visitor's own changes are kept.
+     ============================================================ */
+
+  const EMBED_SIG_KEY = "sg-qb-embed-sig";
+  const PREF_RULES = {
+    theme: v => v === "dark" || v === "light",
+    style: v => THEMES.some(t => t.id === v),
+    accent: v => v === "" || /^#[0-9a-f]{6}$/i.test(v),
+    barColor: v => v === "" || /^#[0-9a-f]{6}$/i.test(v),
+    title: v => typeof v === "string" && v.length <= 80,
+    refreshMin: v => REFRESH_OPTIONS.includes(v),
+    locked: v => typeof v === "boolean",
+    ticker: v => typeof v === "boolean",
+    futuresTicker: v => typeof v === "boolean",
+    newsTicker: v => typeof v === "boolean",
+    fit: v => typeof v === "boolean"
+  };
+  let embedFallback = null; // used when this browser blocks storage in iframes
+
+  function readEmbedConfig() {
+    if (window.parent === window) return null;
+    const m = /[#&]sgqb=([^&]*)/.exec(location.hash);
+    if (!m) return null;
+    try {
+      const cfg = JSON.parse(decodeURIComponent(m[1]));
+      return cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function cleanPrefs(obj) {
+    const out = {};
+    if (!obj || typeof obj !== "object") return out;
+    Object.keys(PREF_RULES).forEach(k => {
+      if (obj[k] !== undefined && PREF_RULES[k](obj[k])) out[k] = obj[k];
+    });
+    return out;
+  }
+
+  function stringHash(str) {
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return String(h >>> 0) + ":" + str.length;
+  }
+
+  function applyEmbedDefaults() {
+    if (!EMBED) return;
+    const board = EMBED.board && typeof EMBED.board === "object" ? EMBED.board : null;
+    const ownerLayout = board && Array.isArray(board.layout)
+      ? board.layout.filter(p => p && typeof p === "object" && typeof p.id === "string"
+          && /^[\w-]{1,40}$/.test(p.id)).slice(0, 40)
+      : null;
+    const ownerPrefs = Object.assign(cleanPrefs(board && board.prefs), cleanPrefs(EMBED.prefs));
+
+    const sig = stringHash(JSON.stringify([ownerLayout, ownerPrefs, board && board.panels]));
+    let stored = null;
+    try { stored = localStorage.getItem(EMBED_SIG_KEY); } catch (e) { /* blocked */ }
+    if (stored === sig) return;
+
+    try {
+      if (ownerLayout) {
+        Object.keys(localStorage).filter(k => k.startsWith("sg-qb:")).forEach(k => localStorage.removeItem(k));
+        localStorage.setItem(LAYOUT_KEY, JSON.stringify(ownerLayout));
+        const panels = board.panels && typeof board.panels === "object" ? board.panels : {};
+        ownerLayout.forEach(p => {
+          const saved = panels[p.id];
+          if (!saved || typeof saved !== "object") return;
+          Object.keys(saved).forEach(k => {
+            if (/^[\w-]{1,64}$/.test(k) && typeof saved[k] === "string" && saved[k].length <= 100000) {
+              localStorage.setItem(PANEL_PREFIX(p.id) + k, saved[k]);
+            }
+          });
+        });
+      }
+      const current = readJSON(PREFS_KEY, {});
+      localStorage.setItem(PREFS_KEY, JSON.stringify(Object.assign({}, current, ownerPrefs)));
+      localStorage.setItem(EMBED_SIG_KEY, sig);
+    } catch (e) {
+      embedFallback = { layout: ownerLayout, prefs: ownerPrefs };
+    }
+  }
+
+  applyEmbedDefaults();
+
   const prefs = Object.assign(
     {
       theme: "dark",          // mode: dark | light
@@ -110,10 +212,11 @@
       weatherLat: null,       // last weather location entered
       weatherLon: null
     },
-    readJSON(PREFS_KEY, {})
+    readJSON(PREFS_KEY, {}),
+    embedFallback ? embedFallback.prefs : {}
   );
 
-  let layout = readJSON(LAYOUT_KEY, null);
+  let layout = readJSON(LAYOUT_KEY, null) || (embedFallback && embedFallback.layout);
   if (!Array.isArray(layout)) layout = defaultLayout();
 
   // Older layouts stored pixel heights; convert them to grid rows
@@ -127,8 +230,12 @@
 
 
   function saveLayout() {
+    writeJSON(LAYOUT_KEY, serializeLayout());
+  }
+
+  function serializeLayout() {
     // groupBy and view are only seeds for new panels; the widget owns them afterwards
-    writeJSON(LAYOUT_KEY, layout.map(p => {
+    return layout.map(p => {
       const base = { id: p.id, type: panelType(p), title: p.title, span: p.span, rows: p.rows };
       switch (panelType(p)) {
         case "weather": return Object.assign(base, { lat: p.lat, lon: p.lon, units: p.units });
@@ -141,7 +248,7 @@
         });
         default: return Object.assign(base, { json: p.json });
       }
-    }));
+    });
   }
 
   function panelType(p) {
@@ -264,10 +371,13 @@
             </div>
           </div>
         </div>
+        <button type="button" class="qb-btn qb-embed-btn" title="Get code to put this board on your website">
+          &lt;/&gt; <span class="qb-btn-label">Embed</span>
+        </button>
         <button type="button" class="qb-btn qb-reset" title="Reset to the default layout">
           Reset
         </button>
-        <button type="button" class="qb-btn qb-btn-primary qb-add">
+        <button type="button" class="qb-btn qb-btn-primary qb-add" title="Add a panel">
           + <span class="qb-btn-label">Add Panel</span>
         </button>
         <button type="button" class="qb-btn qb-toggle-lock" aria-pressed="false"
@@ -369,13 +479,38 @@
         </div>
       </form>
     </dialog>
+
+    <dialog class="qb-dialog qb-embed-dialog">
+      <form method="dialog" class="qb-dialog-form">
+        <h2>Embed on your website</h2>
+        <p class="qb-hint">Paste this where the board should appear on your site. Visitors see this board as it looks now: its layout, panels, theme and title. Copy new code after you change the board.</p>
+        <label class="qb-check"><input type="checkbox" name="locked" checked> Lock the board for visitors</label>
+        <label class="qb-check"><input type="checkbox" name="board" checked> Include this layout and its panels</label>
+        <label>
+          Height
+          <select name="height">
+            <option value="600">600 px</option>
+            <option value="720" selected>720 px</option>
+            <option value="900">900 px</option>
+            <option value="100vh">Full window height</option>
+            <option value="auto">Grow with the board (Fit to screen off)</option>
+          </select>
+        </label>
+        <textarea class="qb-embed-code" readonly rows="7" spellcheck="false" aria-label="Embed code"></textarea>
+        <p class="qb-hint">API keys are never included. Visitors enter their own Barchart OnDemand key in the futures panel, or add <code>data-futures-apikey="…"</code> to the code (anyone can read it in your page source).</p>
+        <div class="qb-dialog-actions">
+          <button type="button" class="qb-btn qb-embed-close">Close</button>
+          <button type="button" class="qb-btn qb-btn-primary qb-embed-copy">Copy code</button>
+        </div>
+      </form>
+    </dialog>
   `;
 
   const board = root.querySelector(".qb-board");
   const tickerEl = root.querySelector(".qb-ticker:not(.qb-ticker-futures):not(.qb-ticker-news)");
   const futuresTickerEl = root.querySelector(".qb-ticker-futures");
   const newsTickerEl = root.querySelector(".qb-ticker-news");
-  const dialog = root.querySelector(".qb-dialog");
+  const dialog = root.querySelector(".qb-dialog:not(.qb-embed-dialog)");
 
   /* ============================================================
      PANELS
@@ -1394,6 +1529,92 @@
     loadNewsTicker();
   });
 
+
+  /* ============================================================
+     EMBED CODE — the board as a one-line website embed
+     (sg-quoteboard-embed.js loads this page in an iframe and hands
+     these settings over in its address)
+     ============================================================ */
+
+  const embedDialog = root.querySelector(".qb-embed-dialog");
+  const embedForm = embedDialog.querySelector("form");
+  const embedCode = embedDialog.querySelector(".qb-embed-code");
+
+  // Per-panel widget settings (tiles, columns, sort…) saved in this browser
+  function panelSnapshot() {
+    const out = {};
+    try {
+      layout.forEach(p => {
+        const prefix = PANEL_PREFIX(p.id);
+        Object.keys(localStorage).filter(k => k.startsWith(prefix)).forEach(k => {
+          (out[p.id] = out[p.id] || {})[k.slice(prefix.length)] = localStorage.getItem(k);
+        });
+      });
+    } catch (e) { /* storage blocked: layout only */ }
+    return out;
+  }
+
+  function buildEmbedCode() {
+    const f = embedForm.elements;
+    const attrAmp = v => String(v).replace(/&/g, "&amp;");
+    const board = { prefs: Object.assign(cleanPrefs(prefs), { locked: f.locked.checked }) };
+    if (f.board.checked) {
+      board.layout = serializeLayout();
+      board.panels = panelSnapshot();
+    }
+    const attrs = ["data-sg-quoteboard", `data-height="${f.height.value}"`];
+    const feed = rememberedFeed();
+    if (feed) attrs.push(`data-json="${escapeHtml(feed)}"`);
+    attrs.push(`data-board='${attrAmp(JSON.stringify(board)).replace(/'/g, "&#39;")}'`);
+    const script = new URL("sg-quoteboard-embed.js", location.href).href;
+    return `<div ${attrs.join("\n     ")}></div>\n<script src="${escapeHtml(script)}"></script>`;
+  }
+
+  root.querySelector(".qb-embed-btn").addEventListener("click", () => {
+    embedCode.value = buildEmbedCode();
+    if (typeof embedDialog.showModal === "function") embedDialog.showModal();
+    embedCode.focus();
+    embedCode.select();
+  });
+  embedForm.addEventListener("change", () => { embedCode.value = buildEmbedCode(); });
+  embedDialog.querySelector(".qb-embed-close").addEventListener("click", () => embedDialog.close());
+  embedDialog.querySelector(".qb-embed-copy").addEventListener("click", e => {
+    const btn = e.currentTarget;
+    const done = () => {
+      btn.textContent = "Copied";
+      setTimeout(() => { btn.textContent = "Copy code"; }, 2000);
+    };
+    embedCode.select();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(embedCode.value).then(done, () => document.execCommand("copy") && done());
+    } else if (document.execCommand("copy")) {
+      done();
+    }
+  });
+
+  /* Inside an iframe: tell the embed script how tall the board is so
+     data-height="auto" can size the frame */
+  if (EMBED) {
+    let lastHeight = 0;
+    // Bottom of the toolbar, tickers and panels (the board itself always
+    // fills the frame, so measuring it would only ever grow)
+    const contentHeight = () => {
+      let bottom = 0;
+      root.querySelectorAll(".qb-topbar, .qb-ticker, .qb-panel").forEach(el => {
+        const r = el.getBoundingClientRect();
+        if (r.height) bottom = Math.max(bottom, r.bottom + (el.classList.contains("qb-panel") ? 12 : 0));
+      });
+      return Math.ceil(bottom + window.scrollY);
+    };
+    const postHeight = () => {
+      const height = contentHeight();
+      if (!height || height === lastHeight) return;
+      lastHeight = height;
+      try { window.parent.postMessage({ type: "sg-qb:height", height }, "*"); } catch (e) { /* ignore */ }
+    };
+    window.addEventListener("load", postHeight);
+    setInterval(postHeight, 1000);
+  }
 
   root.querySelector(".qb-reset").addEventListener("click", () => {
     if (!confirm("Reset the board to the default layout? Panel settings will be cleared.")) return;
